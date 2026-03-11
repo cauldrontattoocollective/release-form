@@ -1265,6 +1265,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 <script>
 // ─── STATE ───────────────────────────────────────────────
 let scriptUrl = localStorage.getItem('cauldron_script') || '';
+window._scriptUrl = scriptUrl;
 const sigStates = {};
 
 // ─── SETUP MODAL ─────────────────────────────────────────
@@ -1290,7 +1291,8 @@ window.addEventListener('load', () => {
 
 function saveSetup() {
   const url = document.getElementById('scriptUrl').value.trim();
-  if (url) { localStorage.setItem('cauldron_script', url); scriptUrl = url; }
+  if (url) { localStorage.setItem('cauldron_script', url);
+  window._scriptUrl = url; scriptUrl = url; }
   document.getElementById('setupModal').style.display = 'none';
 }
 function skipSetup() { document.getElementById('setupModal').style.display = 'none'; }
@@ -1558,23 +1560,12 @@ async function submitForm() {
 
   const data = collectData();
 
-  // Send to Drive
-  if (scriptUrl) {
-    try {
-      await fetch(scriptUrl, {
-        method: 'POST', mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-    } catch(e) { /* no-cors won't error */ }
-  }
-
   btn.disabled = false;
   buildConfirmScreen(data);
   showPage('page3');
   window.scrollTo(0, 0);
 
-  // Generate and download PDF after confirm screen renders
+  // Generate PDF, download it, and send to Drive
   setTimeout(() => generatePDF(data), 600);
 }
 
@@ -1582,218 +1573,295 @@ function generatePDF(data) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
   const W = doc.internal.pageSize.getWidth();
-  const margin = 48;
+  const H = doc.internal.pageSize.getHeight();
+  const margin = 54;
   const col = W - margin * 2;
-  let y = 48;
+  let y = H - margin;
 
-  const colors = { heading: [30,30,30], label: [100,100,100], value: [20,20,20], accent: [139,90,43], rule: [220,215,208], warn: [180,100,0] };
+  const C = {
+    black: [17,17,17], muted: [68,68,68], light: [136,136,136],
+    rule: [187,187,187], warnBg: [255,248,225], warnBorder: [240,165,0], warnText: [146,64,14]
+  };
 
-  function checkPage(needed = 20) {
-    if (y + needed > doc.internal.pageSize.getHeight() - 48) {
-      doc.addPage();
-      y = 48;
-      drawPageHeader();
+  function nl(n=14) { y -= n; }
+  function setColor(rgb) { doc.setTextColor(...rgb); }
+  function setDraw(rgb) { doc.setDrawColor(...rgb); }
+
+  function hline(weight=0.5, color=C.rule) {
+    setDraw(color); doc.setLineWidth(weight);
+    doc.line(margin, y, W-margin, y);
+  }
+
+  function wrapText(text, font, style, size, maxW) {
+    doc.setFont(font, style); doc.setFontSize(size);
+    return doc.splitTextToSize(text, maxW);
+  }
+
+  function drawWrapped(text, font, style, size, x, maxW, leading) {
+    const lines = wrapText(text, font, style, size, maxW);
+    doc.setFont(font, style); doc.setFontSize(size);
+    lines.forEach((ln, i) => doc.text(ln, x, y - i * leading));
+    return lines.length;
+  }
+
+  function newPage() {
+    doc.addPage();
+    y = H - margin;
+  }
+
+  function footer() {
+    doc.setFont('helvetica','italic'); doc.setFontSize(7); setColor(C.light);
+    const ts = data.submittedAt ? new Date(data.submittedAt).toLocaleString() : '';
+    const l1 = (ts ? 'Form completed: ' + ts + '  \u00b7  ' : '') + 'THE CAULDRON TATTOO COLLECTIVE  \u00b7  Fort Wayne, IN';
+    doc.text(l1, margin, margin + 16);
+    doc.text('Records retained per Fort Wayne\u2013Allen County Dept. of Health Ordinance \u00a710-7-5-1  \u00b7  Minimum 2-year retention required', margin, margin + 6);
+  }
+
+  function twoFields(l1, v1, l2, v2, split=0.5, opt1=false, opt2=false) {
+    const mid = margin + col * split;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); setColor(C.muted);
+    doc.text(l1, margin, y);
+    let lw1 = doc.getTextWidth(l1) + 4;
+    if (opt1) {
+      doc.setFont('helvetica','italic'); doc.setFontSize(7.5); setColor(C.light);
+      doc.text('(optional)', margin + lw1, y);
+      lw1 += doc.getTextWidth('(optional)') + 4;
     }
+    setDraw(C.rule); doc.setLineWidth(0.6);
+    doc.line(margin + lw1, y - 2, mid - 8, y - 2);
+    if (v1) { doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black); doc.text(String(v1), margin + lw1 + 3, y); }
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); setColor(C.muted);
+    doc.text(l2, mid, y);
+    let lw2 = doc.getTextWidth(l2) + 4;
+    if (opt2) {
+      doc.setFont('helvetica','italic'); doc.setFontSize(7.5); setColor(C.light);
+      doc.text('(optional)', mid + lw2, y);
+      lw2 += doc.getTextWidth('(optional)') + 4;
+    }
+    setDraw(C.rule); doc.setLineWidth(0.6);
+    doc.line(mid + lw2, y - 2, margin + col, y - 2);
+    if (v2) { doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black); doc.text(String(v2), mid + lw2 + 3, y); }
   }
 
-  function drawPageHeader() {
-    doc.setFont('helvetica','bold').setFontSize(9).setTextColor(...colors.accent);
-    doc.text('THE CAULDRON — CONSENT & RELEASE FORM', margin, y);
-    doc.setDrawColor(...colors.rule).setLineWidth(0.5).line(margin, y+4, W-margin, y+4);
-    y += 16;
+  function fourFields(items) {
+    let x = margin;
+    items.forEach(([label, value, frac]) => {
+      const fw = col * frac;
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); setColor(C.muted);
+      doc.text(label, x, y);
+      const lw = doc.getTextWidth(label) + 5;
+      setDraw(C.rule); doc.setLineWidth(0.6);
+      doc.line(x + lw, y - 2, x + fw - 6, y - 2);
+      if (value) { doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black); doc.text(String(value), x + lw + 3, y); }
+      x += fw;
+    });
   }
 
-  function section(title) {
-    checkPage(32);
-    doc.setFillColor(245,242,238).rect(margin, y, col, 18, 'F');
-    doc.setFont('helvetica','bold').setFontSize(9).setTextColor(...colors.accent);
-    doc.text(title.toUpperCase(), margin+6, y+12);
-    y += 24;
-  }
-
-  function row(label, value, opts={}) {
-    if (!value && value !== 0) value = '—';
-    const needed = 18;
-    checkPage(needed);
-    doc.setFont('helvetica','normal').setFontSize(8).setTextColor(...colors.label);
+  function fieldLine(label, value, labelW) {
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); setColor(C.muted);
     doc.text(label, margin, y);
-    doc.setFont('helvetica','bold').setFontSize(9).setTextColor(...colors.value);
-    const valX = opts.fullWidth ? margin : margin + 160;
-    const valW = opts.fullWidth ? col : col - 160;
-    const lines = doc.splitTextToSize(String(value), valW);
-    doc.text(lines, valX, y);
-    y += Math.max(needed, lines.length * 11);
+    const lw = labelW || (doc.getTextWidth(label) + 6);
+    setDraw(C.rule); doc.setLineWidth(0.6);
+    doc.line(margin + lw, y - 2, margin + col, y - 2);
+    if (value) { doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black); doc.text(String(value), margin + lw + 3, y); }
   }
 
-  function rule() {
-    checkPage(10);
-    doc.setDrawColor(...colors.rule).setLineWidth(0.3).line(margin, y, W-margin, y);
-    y += 8;
-  }
-
-  function sigBox(label, dataUrl) {
-    checkPage(70);
-    doc.setFont('helvetica','normal').setFontSize(8).setTextColor(...colors.label);
-    doc.text(label, margin, y);
-    y += 6;
-    if (dataUrl) {
-      try { doc.addImage(dataUrl, 'PNG', margin, y, 200, 50); } catch(e) {}
-    } else {
-      doc.setDrawColor(...colors.rule).rect(margin, y, 200, 50);
+  function initialItem(num, text, initials, isMedical=false, medValue='') {
+    // box
+    setDraw(C.rule); doc.setLineWidth(0.6);
+    doc.rect(margin, y - 11, 28, 13, 'S');
+    if (initials) {
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
+      doc.text(initials, margin + 14, y - 2, {align:'center'});
     }
-    y += 58;
-  }
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); setColor(C.muted);
+    doc.text(num + '.', margin + 32, y - 1);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); setColor(C.black);
+    const lines = doc.splitTextToSize(text, col - 55);
+    lines.forEach((ln, i) => doc.text(ln, margin + 44, y - 1 - i * 11));
+    y -= Math.max(18, lines.length * 11 + 5);
 
-  function photoBox(label, dataUrl) {
-    checkPage(120);
-    doc.setFont('helvetica','normal').setFontSize(8).setTextColor(...colors.label);
-    doc.text(label, margin, y); y += 6;
-    if (dataUrl) {
-      try { doc.addImage(dataUrl, 'JPEG', margin, y, 100, 80); } catch(e) {
-        try { doc.addImage(dataUrl, 'PNG', margin, y, 100, 80); } catch(e2) {}
+    if (isMedical) {
+      nl(2);
+      const hasMed = medValue && medValue.trim() && !['none','n/a'].includes(medValue.toLowerCase());
+      if (hasMed) {
+        doc.setFillColor(...C.warnBg); doc.setDrawColor(...C.warnBorder); doc.setLineWidth(1.2);
+        doc.rect(margin + 44, y - 36, col - 44, 40, 'FD');
+        doc.setFont('helvetica','bold'); doc.setFontSize(8); setColor(C.warnText);
+        doc.text('\u26a0  ARTIST \u2014 REVIEW BEFORE STARTING:', margin + 50, y - 11);
+        doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(120, 53, 15);
+        const ml = doc.splitTextToSize(medValue, col - 70);
+        ml.slice(0,2).forEach((ln, i) => doc.text(ln, margin + 50, y - 24 - i * 12));
+        y -= 46;
+      } else {
+        // Two blank write-in lines
+        setDraw(C.rule); doc.setLineWidth(0.5);
+        doc.line(margin + 44, y - 2, margin + col, y - 2); nl(14);
+        doc.line(margin + 44, y - 2, margin + col, y - 2); nl(14);
       }
-    } else {
-      doc.setDrawColor(...colors.rule).rect(margin, y, 100, 80);
-      doc.setFont('helvetica','italic').setFontSize(8).setTextColor(...colors.label);
-      doc.text('No photo on file', margin+8, y+44);
+      nl(2);
     }
-    y += 90;
   }
 
-  // ── HEADER ────────────────────────────────────────────────────────────────
-  doc.setFont('helvetica','bold').setFontSize(22).setTextColor(...colors.accent);
-  doc.text('The Cauldron', margin, y); y += 24;
-  doc.setFont('helvetica','normal').setFontSize(10).setTextColor(...colors.heading);
-  doc.text('Tattoo Consent & Release Form', margin, y); y += 8;
-  doc.setDrawColor(...colors.accent).setLineWidth(1.5).line(margin, y, W-margin, y); y += 16;
-
-  // ── SESSION ───────────────────────────────────────────────────────────────
-  section('Session Details');
-  row('Date', data.session.date);
-  row('Time', data.session.time);
-  row('Artist', data.session.artist);
-  row('Design', data.session.design);
-  row('Placement', data.session.placement);
-  row('Deposit', data.session.deposit || data.session.price);
-  row('Final Cost', data.session.finalCost);
-  rule();
-
-  // ── CLIENT ────────────────────────────────────────────────────────────────
-  section('Client Information');
-  row('Legal Name', data.client.legalName);
-  if (data.client.prefName) row('Preferred Name', data.client.prefName);
-  if (data.client.prefPronouns) row('Pronouns', data.client.prefPronouns);
-  row('Date of Birth', data.client.dob);
-  row('Age', data.client.age);
-  row('Phone', data.client.phone);
-  row('Address', [data.client.address, data.client.city, data.client.state, data.client.zip].filter(Boolean).join(', '));
-  row('ID / DL #', data.client.dlNum);
-  rule();
-
-  // ── MEDICAL ───────────────────────────────────────────────────────────────
-  section('Medical Disclosure');
-  const hasMed = data.client.medical && data.client.medical.toLowerCase() !== 'none';
-  if (hasMed) {
-    checkPage(30);
-    doc.setFont('helvetica','bold').setFontSize(8).setTextColor(...colors.warn);
-    doc.text('⚠ CONDITIONS NOTED — REVIEW BEFORE STARTING', margin, y); y += 12;
-    doc.setFont('helvetica','normal').setFontSize(9).setTextColor(...colors.value);
-    const mlines = doc.splitTextToSize(data.client.medical, col);
-    doc.text(mlines, margin, y); y += mlines.length * 11 + 6;
-  } else {
-    row('Medical', 'None reported');
-  }
-  rule();
-
-  // ── INITIALS ──────────────────────────────────────────────────────────────
-  section('Consent Initials');
-  const initLabels = [
-    'Consent to procedure, placement, design, spelling, and color variation',
-    'Not under influence of drugs/alcohol; not breastfeeding',
-    'Understands allergic reactions to materials are possible',
-    'Understands infection risk; agrees to follow aftercare instructions',
-    'Medical conditions and allergies disclosed',
-    'Meets age requirement (18+ or accompanied legal guardian)',
-    'Full liability release — The Cauldron and staff',
-    'Companion on work side acknowledged (if applicable)',
-    'All information honest and accurate'
-  ];
-  for (let i = 0; i < 9; i++) {
-    checkPage(16);
-    const init = data.initials['i'+(i+1)] || '____';
-    doc.setFont('helvetica','bold').setFontSize(9).setTextColor(...colors.accent);
-    doc.text(`${i+1}.`, margin, y);
-    doc.setFont('helvetica','normal').setFontSize(8).setTextColor(...colors.value);
-    const ilines = doc.splitTextToSize(initLabels[i], col - 60);
-    doc.text(ilines, margin + 16, y);
-    doc.setFont('helvetica','bold').setFontSize(10).setTextColor(...colors.accent);
-    doc.text(`[${init}]`, W - margin - 30, y);
-    y += Math.max(14, ilines.length * 10 + 2);
-  }
-  rule();
-
-  // ── SIGNATURES ────────────────────────────────────────────────────────────
-  section('Signatures');
-  sigBox('Patron Signature', data.signatures.client);
-  sigBox('Artist Signature', data.signatures.artist);
-  if (data.isMinor && data.signatures.parent) {
-    sigBox('Legal Guardian Signature', data.signatures.parent);
-  }
-  rule();
-
-  // ── MINOR / GUARDIAN ──────────────────────────────────────────────────────
-  if (data.isMinor && data.minor) {
-    section('Minor & Guardian Information');
-    row('Guardian Legal Name', data.minor.parentName);
-    if (data.minor.parentPrefName) row('Guardian Preferred Name', data.minor.parentPrefName);
-    if (data.minor.parentPronouns) row('Guardian Pronouns', data.minor.parentPronouns);
-    row('Guardian ID #', data.minor.parentDL);
-    rule();
-  }
-
-  // ── PHOTOS ────────────────────────────────────────────────────────────────
-  section('ID Photos on File');
-  checkPage(200);
-  // Lay photos side by side where possible
-  const photoY = y;
-  let px = margin;
-  const photos = [
-    { label: data.isMinor ? 'Minor Photo ID' : 'Client Photo ID', data: data.idPhoto },
-  ];
-  if (data.isMinor) {
-    photos.push({ label: 'Guardian Photo ID', data: data.parentIDPhoto });
-    photos.push({ label: 'Proof of Guardianship', data: data.guardianProofPhoto });
-  }
-  for (const photo of photos) {
-    if (px + 120 > W - margin) { px = margin; y += 110; checkPage(110); }
-    doc.setFont('helvetica','normal').setFontSize(7).setTextColor(...colors.label);
-    doc.text(photo.label, px, y);
-    if (photo.data) {
-      try { doc.addImage(photo.data, 'JPEG', px, y+4, 100, 80); } catch(e) {
-        try { doc.addImage(photo.data, 'PNG', px, y+4, 100, 80); } catch(e2) {
-          doc.setDrawColor(...colors.rule).rect(px, y+4, 100, 80);
-        }
-      }
-    } else {
-      doc.setDrawColor(...colors.rule).rect(px, y+4, 100, 80);
-      doc.setFont('helvetica','italic').setFontSize(7).setTextColor(...colors.label);
-      doc.text('Not provided', px+8, y+48);
+  function sigLine(label, sigData, height=72) {
+    if (label) {
+      doc.setFont('helvetica','normal'); doc.setFontSize(8); setColor(C.muted);
+      doc.text(label, margin, y); nl(8);
     }
-    px += 116;
+    setDraw(C.rule); doc.setLineWidth(0.6);
+    doc.line(margin, y - height + 10, margin + col, y - height + 10);
+    if (sigData) {
+      try { doc.addImage(sigData, 'PNG', margin + 4, y - height + 12, col - 8, height - 14); }
+      catch(e) { try { doc.addImage(sigData, 'JPEG', margin + 4, y - height + 12, col - 8, height - 14); } catch(e2){} }
+    }
+    y -= height;
   }
-  y += 100;
-  rule();
 
-  // ── FOOTER ────────────────────────────────────────────────────────────────
-  checkPage(30);
-  doc.setFont('helvetica','italic').setFontSize(7.5).setTextColor(...colors.label);
-  doc.text(`Form completed: ${new Date(data.submittedAt).toLocaleString()} · The Cauldron · Fort Wayne, IN`, margin, y);
-  doc.text('Records maintained per Fort Wayne–Allen County Dept. of Health Ordinance §10-7-5-1', margin, y+10);
+  // ════════════════════════════════════════
+  // PAGE 1 — Consent + Client Info + Client Sig
+  // ════════════════════════════════════════
+  const s = data.session; const cl = data.client;
 
-  // ── SAVE ──────────────────────────────────────────────────────────────────
-  const fname = `${data.session.date}_${(data.client.legalName||'Client').replace(/\s+/g,'_')}_Consent.pdf`;
+  fourFields([
+    ['DATE:', s.date, 0.22], ['TIME:', s.time, 0.18],
+    ['ARTIST:', s.artist, 0.32], ['DEPOSIT:', s.deposit||s.price, 0.28]
+  ]); nl(22);
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(18); setColor(C.black);
+  doc.text('THE CAULDRON TATTOO COLLECTIVE', W/2, y, {align:'center'}); nl(16);
+  doc.setFontSize(13);
+  doc.text('Release and Consent Form', W/2, y, {align:'center'}); nl(10);
+  hline(1.2, C.black); nl(10);
+
+  const intro = 'I acknowledge by signing and filling in these blanks that I have been given the opportunity to ask any questions about obtaining a tattoo from THE CAULDRON. By signing, I confirm all information is true and accurate to the best of my knowledge, and that I have read, understand, and agree to each item below.';
+  doc.setFont('helvetica','normal'); doc.setFontSize(8.5); setColor(C.black);
+  const introLines = doc.splitTextToSize(intro, col);
+  introLines.forEach((ln,i) => doc.text(ln, margin, y - i*12));
+  y -= introLines.length * 12 + 4;
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
+  doc.text('Initial items 1\u20139.  READ CAREFULLY.', margin, y); nl(14);
+
+  const companion = cl.companion || '________________________________';
+  const medical = cl.medical || '';
+  const consentItems = [
+    ['I consent to this procedure and the agreed placement, design, and spelling of the tattoo. I understand that color and appearance may vary from any reference image.', false, ''],
+    ['I am NOT under the influence of drugs or alcohol, and I am NOT currently breastfeeding.', false, ''],
+    ['I acknowledge that it is not reasonably possible for the artist to determine whether I will have an allergic reaction to pigments, metals, latex, or other materials used in this procedure.', false, ''],
+    ['I accept that allergic reactions or infections are possible. Infection is more likely if aftercare is neglected. I agree to follow the written aftercare instructions provided at the end of my session and shall NOT hold THE CAULDRON or any employees/independent contractors liable for any resulting infection or reaction.', false, ''],
+    ['Please disclose any medical conditions, medications, or known allergies your artist should be aware of for the tattoo process. Write \u201cNone\u201d if not applicable.', true, medical],
+    ['I confirm that I am at least 18 years of age, OR that a legal guardian is present with two valid forms of identification and written proof of guardianship.', false, ''],
+    ['I hereby, along with my heirs, assigns, and legal representatives, release and forever hold harmless THE CAULDRON TATTOO COLLECTIVE and all employees and independent contractors from any and all claims, damages, or legal actions arising from or connected with the tattoo or any service performed.', false, ''],
+    ['I give permission for ' + companion + ' to accompany me on the work side. My companion and I do not hold THE CAULDRON or any employees/independent contractors liable for any issues resulting from being on the work side.', false, ''],
+    ['I have answered all items honestly and to the best of my knowledge. All information provided on this form is correct and accurate.', false, ''],
+  ];
+  const initials = data.initials || {};
+  consentItems.forEach(([text, isMed, medVal], i) => {
+    initialItem(String(i+1), text, initials['i'+(i+1)]||'', isMed, medVal);
+    nl(3);
+  });
+
+  nl(6); hline(0.8, C.black); nl(14);
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
+  doc.text('CUSTOMER / CLIENT INFORMATION', margin, y); nl(16);
+
+  twoFields('Legal Name:', cl.legalName, 'Date:', s.date, 0.68); nl(18);
+  twoFields('Preferred Name:', cl.prefName, 'Pronouns:', cl.prefPronouns, 0.55, true, true); nl(18);
+  twoFields('Phone:', cl.phone, "Driver's License #:", cl.dlNum, 0.42); nl(18);
+  fieldLine('Address:', cl.address, 48); nl(18);
+  fourFields([
+    ['City:', cl.city, 0.34], ['State:', cl.state, 0.15],
+    ['Zip:', cl.zip, 0.17], ['DOB:', cl.dob, 0.22], ['Age:', cl.age, 0.12]
+  ]); nl(18);
+
+  hline(0.8, C.black); nl(12);
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
+  doc.text('\u26a0  Customer/Client Signature:', margin, y); nl(8);
+  doc.setFont('helvetica','italic'); doc.setFontSize(8); setColor(C.muted);
+  doc.text('I hereby CERTIFY that, to the best of my knowledge, the information above is CORRECT.', margin, y); nl(10);
+  sigLine('', data.signatures?.client, 72);
+  footer();
+
+  // ════════════════════════════════════════
+  // PAGE 2 — Guardian + Artist
+  // ════════════════════════════════════════
+  newPage();
+  const m = data.minor || {};
+
+  doc.setFont('helvetica','italic'); doc.setFontSize(8); setColor(C.muted);
+  const minorNote = '*If the customer/client is under the age of 18, all fields below must be completed. Guardian must remain present for the entire procedure or service will be denied.';
+  const mnLines = doc.splitTextToSize(minorNote, col);
+  mnLines.forEach((ln,i) => doc.text(ln, margin, y - i*12));
+  y -= mnLines.length * 12 + 10;
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(10); setColor(C.black);
+  doc.text('I hereby give my child permission to receive said TATTOO', margin, y); nl(20);
+
+  twoFields('Guardian Legal Name:', m.parentName, 'Preferred Name:', m.parentPrefName, 0.52, false, true); nl(18);
+  twoFields('Pronouns:', m.parentPronouns, "Guardian Driver's License #:", m.parentDL, 0.30, true); nl(18);
+  nl(6);
+  sigLine('Guardian Signature:', data.signatures?.parent, 72);
+  nl(14);
+
+  hline(0.8, C.black); nl(16);
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
+  doc.text('*The following is for the artist to verify and complete.', margin, y); nl(14);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); setColor(C.muted);
+  doc.text('The following was AGREED to by the Customer/Client and (if applicable) the Legal Guardian.', margin, y); nl(20);
+
+  twoFields('TATTOO DESIGN:', s.design, 'PLACEMENT:', s.placement, 0.5); nl(20);
+  twoFields('FINAL COST:', s.finalCost, 'DATE:', s.date, 0.5); nl(20);
+  sigLine('Artist Signature:', data.signatures?.artist, 72);
+  footer();
+
+  // ════════════════════════════════════════
+  // PAGE 3 — ID Photos (if any exist)
+  // ════════════════════════════════════════
+  const photos = [];
+  if (data.idPhoto) photos.push({ label: data.isMinor ? 'Minor / Patron Photo ID' : 'Patron Photo ID', src: data.idPhoto });
+  if (data.parentIDPhoto) photos.push({ label: 'Legal Guardian Photo ID', src: data.parentIDPhoto });
+  if (data.guardianProofPhoto) photos.push({ label: 'Proof of Guardianship', src: data.guardianProofPhoto });
+
+  if (photos.length > 0) {
+    newPage();
+    doc.setFont('helvetica','bold'); doc.setFontSize(14); setColor(C.black);
+    doc.text('THE CAULDRON TATTOO COLLECTIVE', W/2, y, {align:'center'}); nl(16);
+    doc.setFontSize(10);
+    doc.text('ID Documents on File', W/2, y, {align:'center'}); nl(8);
+    hline(1.2, C.black); nl(16);
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); setColor(C.muted);
+    const nameStr = (cl.prefName || cl.legalName) + (cl.prefPronouns ? ' (' + cl.prefPronouns + ')' : '');
+    doc.text('Client: ' + nameStr, margin, y);
+    doc.text('Date: ' + s.date + '  ·  Artist: ' + s.artist, W - margin, y, {align:'right'});
+    nl(20);
+
+    const photoW = col;
+    const photoH = 180;
+    photos.forEach(({ label, src }) => {
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
+      doc.text(label, margin, y); nl(8);
+      try { doc.addImage(src, 'JPEG', margin, y - photoH, photoW, photoH); }
+      catch(e) { try { doc.addImage(src, 'PNG', margin, y - photoH, photoW, photoH); } catch(e2) {
+        setDraw(C.rule); doc.setLineWidth(0.5);
+        doc.rect(margin, y - photoH, photoW, photoH, 'S');
+        doc.setFont('helvetica','italic'); doc.setFontSize(9); setColor(C.muted);
+        doc.text('Photo not available', W/2, y - photoH/2, {align:'center'});
+      }}
+      y -= photoH + 20; nl(10);
+    });
+    footer();
+  }
+
+  // Save
+  const fname = s.date + '_' + (cl.legalName||'Client').replace(/\s+/g,'_') + '_Consent.pdf';
   doc.save(fname);
 }
+
 
 function collectData() {
   const inits = {};
@@ -1949,7 +2017,7 @@ function buildConfirmScreen(data) {
   if (scriptUrl) {
     document.getElementById('driveCard').style.display = 'block';
     // Build a search link for this specific file by name
-    const fname = data.session.date + '_' + (data.client.legalName||'Client').replace(/\s+/g,'_') + '_Consent';
+    const fname = data.session.date + '_' + (data.client.legalName||'Client').replace(/\s+/g,'_') + '_Consent.pdf';
     document.getElementById('driveLink').href = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(fname);
   }
 }
