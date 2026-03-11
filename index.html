@@ -1162,24 +1162,20 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     <div class="confirm-pronouns" id="confirmPronouns"></div>
     <div class="confirm-pill">✓ Form Submitted</div>
 
-    <!-- Client summary card -->
+    <!-- Client summary card — name + pronouns only -->
     <div class="confirm-card" role="region" aria-label="Client summary">
-      <div class="confirm-card-title">Client Details</div>
+      <div class="confirm-card-title">Client</div>
       <div class="confirm-detail">
+        <span class="confirm-detail-label">Name</span>
+        <span class="confirm-detail-value" id="cDisplayName">—</span>
+      </div>
+      <div class="confirm-detail" id="cLegalNameRow" style="display:none;">
         <span class="confirm-detail-label">Legal Name</span>
         <span class="confirm-detail-value" id="cLegalName">—</span>
       </div>
-      <div class="confirm-detail">
-        <span class="confirm-detail-label">Phone</span>
-        <span class="confirm-detail-value" id="cPhone">—</span>
-      </div>
-      <div class="confirm-detail">
-        <span class="confirm-detail-label">DOB / Age</span>
-        <span class="confirm-detail-value" id="cDOB">—</span>
-      </div>
-      <div class="confirm-detail">
-        <span class="confirm-detail-label">DL #</span>
-        <span class="confirm-detail-value" id="cDL">—</span>
+      <div class="confirm-detail" id="cPronounRow" style="display:none;">
+        <span class="confirm-detail-label">Pronouns</span>
+        <span class="confirm-detail-value" id="cPronounDetail">—</span>
       </div>
     </div>
 
@@ -1210,36 +1206,21 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
       <div class="sig-hint" style="margin-top:6px;">Tap photo to enlarge</div>
     </div>
 
-    <!-- Minor / Guardian cards (shown only if minor) -->
-    <div class="confirm-card" id="cMinorCard" style="display:none;" role="region" aria-label="Minor details">
-      <div class="confirm-card-title">Minor Client</div>
-      <div class="confirm-detail">
-        <span class="confirm-detail-label">Legal Name</span>
-        <span class="confirm-detail-value" id="cMinorName">—</span>
-      </div>
-      <div class="confirm-detail">
-        <span class="confirm-detail-label">ID #</span>
-        <span class="confirm-detail-value" id="cMinorDL">—</span>
-      </div>
-    </div>
+    <!-- Guardian card (shown only if minor) -->
 
     <div class="confirm-card" id="cGuardianCard" style="display:none;" role="region" aria-label="Guardian details">
       <div class="confirm-card-title">Accompanied by Legal Guardian</div>
       <div class="confirm-detail">
+        <span class="confirm-detail-label">Name</span>
+        <span class="confirm-detail-value" id="cGuardianDisplayName">—</span>
+      </div>
+      <div class="confirm-detail" id="cGuardianLegalRow" style="display:none;">
         <span class="confirm-detail-label">Legal Name</span>
         <span class="confirm-detail-value" id="cGuardianName">—</span>
-      </div>
-      <div class="confirm-detail" id="cGuardianPrefRow" style="display:none;">
-        <span class="confirm-detail-label">Goes By</span>
-        <span class="confirm-detail-value" id="cGuardianPref">—</span>
       </div>
       <div class="confirm-detail" id="cGuardianPronounRow" style="display:none;">
         <span class="confirm-detail-label">Pronouns</span>
         <span class="confirm-detail-value" id="cGuardianPronouns">—</span>
-      </div>
-      <div class="confirm-detail">
-        <span class="confirm-detail-label">ID #</span>
-        <span class="confirm-detail-value" id="cGuardianDL">—</span>
       </div>
     </div>
 
@@ -1267,7 +1248,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     <div class="confirm-card" id="driveCard" style="display:none;" role="region" aria-label="Google Drive link">
       <div class="confirm-card-title">Saved to Google Drive</div>
       <a class="drive-link" id="driveLink" href="#" target="_blank" rel="noopener">
-        📁 Open Cauldron Consent Forms folder
+        📄 Open this consent form in Drive
       </a>
     </div>
 
@@ -1864,11 +1845,20 @@ function buildConfirmScreen(data) {
   const pronounEl = document.getElementById('confirmPronouns');
   pronounEl.textContent = client.prefPronouns ? client.prefPronouns : '';
 
-  // Details
-  document.getElementById('cLegalName').textContent = client.legalName;
-  document.getElementById('cPhone').textContent = client.phone;
-  document.getElementById('cDOB').textContent = `${client.dob} · Age ${client.age}`;
-  document.getElementById('cDL').textContent = client.dlNum;
+  // Client card — preferred name or legal, pronouns in parens if set
+  const clientDisplayName = client.prefName
+    ? client.prefName + (client.prefPronouns ? ' (' + client.prefPronouns + ')' : '')
+    : client.legalName + (client.prefPronouns ? ' (' + client.prefPronouns + ')' : '');
+  document.getElementById('cDisplayName').textContent = clientDisplayName;
+  // Show legal name separately only if they have a preferred name
+  if (client.prefName) {
+    document.getElementById('cLegalName').textContent = client.legalName;
+    document.getElementById('cLegalNameRow').style.display = 'flex';
+  }
+  if (client.prefPronouns) {
+    document.getElementById('cPronounDetail').textContent = client.prefPronouns;
+    document.getElementById('cPronounRow').style.display = 'flex';
+  }
 
   // Medical card — prominent alert if conditions listed, green clear if none
   const medCard = document.getElementById('cMedCard');
@@ -1911,17 +1901,15 @@ function buildConfirmScreen(data) {
   if (data.isMinor && data.minor) {
     const m = data.minor;
 
-    document.getElementById('cMinorCard').style.display = 'block';
-    document.getElementById('cMinorName').textContent = data.client.legalName || '—';
-    document.getElementById('cMinorDL').textContent = '(patron signature on file)';
-
     document.getElementById('cGuardianCard').style.display = 'block';
-    document.getElementById('cGuardianName').textContent = m.parentName || '—';
-    document.getElementById('cGuardianDL').textContent = m.parentDL || '—';
-
+    // Guardian display name — preferred or legal, with pronouns in parens
+    const gDisplayName = m.parentPrefName
+      ? m.parentPrefName + (m.parentPronouns ? ' (' + m.parentPronouns + ')' : '')
+      : m.parentName + (m.parentPronouns ? ' (' + m.parentPronouns + ')' : '');
+    document.getElementById('cGuardianDisplayName').textContent = gDisplayName || '—';
     if (m.parentPrefName) {
-      document.getElementById('cGuardianPref').textContent = m.parentPrefName;
-      document.getElementById('cGuardianPrefRow').style.display = 'flex';
+      document.getElementById('cGuardianName').textContent = m.parentName || '—';
+      document.getElementById('cGuardianLegalRow').style.display = 'flex';
     }
     if (m.parentPronouns) {
       document.getElementById('cGuardianPronouns').textContent = m.parentPronouns;
@@ -1945,7 +1933,9 @@ function buildConfirmScreen(data) {
   // Drive link
   if (scriptUrl) {
     document.getElementById('driveCard').style.display = 'block';
-    document.getElementById('driveLink').href = 'https://drive.google.com/drive/search?q=Cauldron+Consent+Forms';
+    // Build a search link for this specific file by name
+    const fname = data.session.date + '_' + (data.client.legalName||'Client').replace(/\s+/g,'_') + '_Consent';
+    document.getElementById('driveLink').href = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(fname);
   }
 }
 
@@ -2003,12 +1993,6 @@ function nextClient() {
   window.scrollTo(0, 0);
 }
 </script>
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
-    });
-  }
-</script>
+
 </body>
 </html>
