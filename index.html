@@ -713,9 +713,10 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 <div class="page active" id="page1">
 <div class="container" id="main">
 
-  <header class="form-header">
+  <header class="form-header" style="position:relative;">
     <div class="shop-name">The Cauldron</div>
     <div class="form-title">Consent &amp; Release Form</div>
+    <button type="button" onclick="openSetup()" title="Drive settings" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;opacity:0.5;padding:4px;">⚙️</button>
   </header>
 
   <div class="step-bar" role="navigation" aria-label="Form sections">
@@ -1291,11 +1292,24 @@ window.addEventListener('load', () => {
 
 function saveSetup() {
   const url = document.getElementById('scriptUrl').value.trim();
-  if (url) { localStorage.setItem('cauldron_script', url);
-  window._scriptUrl = url; scriptUrl = url; }
+  try {
+    if (url) localStorage.setItem('cauldron_script', url);
+    else localStorage.removeItem('cauldron_script');
+  } catch(e) {}
+  window._scriptUrl = url;
+  scriptUrl = url;
+  document.getElementById('setupModal').style.display = 'none';
+  // Confirm to user
+  if (url) showStatus('clientStatus', '✓ Google Drive connected', 'ok');
+}
+function skipSetup() {
   document.getElementById('setupModal').style.display = 'none';
 }
-function skipSetup() { document.getElementById('setupModal').style.display = 'none'; }
+function openSetup() {
+  const existing = localStorage.getItem('cauldron_script') || '';
+  document.getElementById('scriptUrl').value = existing;
+  document.getElementById('setupModal').style.display = 'flex';
+}
 
 // ─── INITIALS ─────────────────────────────────────────────
 function checkInit(input, rowId) {
@@ -2085,4 +2099,28 @@ function nextClient() {
   });
 
   // Clear photos
-  ['idPhotoPreview','pidPhotoPreview'].forEach(id => { 
+  ['idPhotoPreview','pidPhotoPreview'].forEach(id => { const el = document.getElementById(id); if(el) el.src=''; });
+  ['idPhotoWrap','pidPhotoWrap'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display='none'; });
+  ['clientPhotoPlaceholder','parentPhotoPlaceholder'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display='block'; });
+
+  // Reset initials styling
+  for (let i = 1; i <= 9; i++) document.getElementById('i' + i).classList.remove('done');
+
+  // Minor section
+  document.getElementById('isMinor').checked = false;
+  document.getElementById('minorSection').classList.remove('open');
+  document.getElementById('parentIDCard').style.display = 'none';
+
+  // Clear status bars
+  ['clientStatus','artistStatus'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.className = 'status-bar';
+  });
+
+  showPage('page1');
+  window.scrollTo(0, 0);
+}
+</script>
+
+</body>
+</html>
