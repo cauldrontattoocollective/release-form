@@ -1857,9 +1857,40 @@ function generatePDF(data) {
     footer();
   }
 
-  // Save
+  // Save — download to tablet
   const fname = s.date + '_' + (cl.legalName||'Client').replace(/\s+/g,'_') + '_Consent.pdf';
-  doc.save(fname);
+  try {
+    const pdfBlob = doc.output('blob');
+    const blobUrl = URL.createObjectURL(pdfBlob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = fname;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+  } catch(e) {
+    const dataUri = doc.output('datauristring');
+    window.open(dataUri, '_blank');
+  }
+
+  // Send PDF to Google Drive as base64
+  if (scriptUrl) {
+    try {
+      const b64 = doc.output('datauristring').split(',')[1];
+      fetch(scriptUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pdf: b64,
+          clientName: cl.legalName || 'Client',
+          date: s.date
+        })
+      }).catch(() => {});
+    } catch(e) {}
+  }
 }
 
 
@@ -2054,28 +2085,4 @@ function nextClient() {
   });
 
   // Clear photos
-  ['idPhotoPreview','pidPhotoPreview'].forEach(id => { const el = document.getElementById(id); if(el) el.src=''; });
-  ['idPhotoWrap','pidPhotoWrap'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display='none'; });
-  ['clientPhotoPlaceholder','parentPhotoPlaceholder'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display='block'; });
-
-  // Reset initials styling
-  for (let i = 1; i <= 9; i++) document.getElementById('i' + i).classList.remove('done');
-
-  // Minor section
-  document.getElementById('isMinor').checked = false;
-  document.getElementById('minorSection').classList.remove('open');
-  document.getElementById('parentIDCard').style.display = 'none';
-
-  // Clear status bars
-  ['clientStatus','artistStatus'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.className = 'status-bar';
-  });
-
-  showPage('page1');
-  window.scrollTo(0, 0);
-}
-</script>
-
-</body>
-</html>
+  ['idPhotoPreview','pidPhotoPreview'].forEach(id => { 
