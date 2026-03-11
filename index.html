@@ -1590,14 +1590,14 @@ function generatePDF(data) {
   const H = doc.internal.pageSize.getHeight();
   const margin = 54;
   const col = W - margin * 2;
-  let y = H - margin;
+  let y = margin; // y=0 is TOP in jsPDF — we move downward
 
   const C = {
     black: [17,17,17], muted: [68,68,68], light: [136,136,136],
     rule: [187,187,187], warnBg: [255,248,225], warnBorder: [240,165,0], warnText: [146,64,14]
   };
 
-  function nl(n=14) { y -= n; }
+  function nl(n=14) { y += n; } // move DOWN
   function setColor(rgb) { doc.setTextColor(...rgb); }
   function setDraw(rgb) { doc.setDrawColor(...rgb); }
 
@@ -1606,29 +1606,17 @@ function generatePDF(data) {
     doc.line(margin, y, W-margin, y);
   }
 
-  function wrapText(text, font, style, size, maxW) {
-    doc.setFont(font, style); doc.setFontSize(size);
-    return doc.splitTextToSize(text, maxW);
-  }
-
-  function drawWrapped(text, font, style, size, x, maxW, leading) {
-    const lines = wrapText(text, font, style, size, maxW);
-    doc.setFont(font, style); doc.setFontSize(size);
-    lines.forEach((ln, i) => doc.text(ln, x, y - i * leading));
-    return lines.length;
-  }
-
   function newPage() {
     doc.addPage();
-    y = H - margin;
+    y = margin;
   }
 
   function footer() {
     doc.setFont('helvetica','italic'); doc.setFontSize(7); setColor(C.light);
     const ts = data.submittedAt ? new Date(data.submittedAt).toLocaleString() : '';
     const l1 = (ts ? 'Form completed: ' + ts + '  \u00b7  ' : '') + 'THE CAULDRON TATTOO COLLECTIVE  \u00b7  Fort Wayne, IN';
-    doc.text(l1, margin, margin + 16);
-    doc.text('Records retained per Fort Wayne\u2013Allen County Dept. of Health Ordinance \u00a710-7-5-1  \u00b7  Minimum 2-year retention required', margin, margin + 6);
+    doc.text('Records retained per Fort Wayne\u2013Allen County Dept. of Health Ordinance \u00a710-7-5-1  \u00b7  Minimum 2-year retention required', margin, H - margin - 4);
+    doc.text(l1, margin, H - margin + 8);
   }
 
   function twoFields(l1, v1, l2, v2, split=0.5, opt1=false, opt2=false) {
@@ -1642,7 +1630,7 @@ function generatePDF(data) {
       lw1 += doc.getTextWidth('(optional)') + 4;
     }
     setDraw(C.rule); doc.setLineWidth(0.6);
-    doc.line(margin + lw1, y - 2, mid - 8, y - 2);
+    doc.line(margin + lw1, y + 2, mid - 8, y + 2);
     if (v1) { doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black); doc.text(String(v1), margin + lw1 + 3, y); }
 
     doc.setFont('helvetica','normal'); doc.setFontSize(8); setColor(C.muted);
@@ -1654,7 +1642,7 @@ function generatePDF(data) {
       lw2 += doc.getTextWidth('(optional)') + 4;
     }
     setDraw(C.rule); doc.setLineWidth(0.6);
-    doc.line(mid + lw2, y - 2, margin + col, y - 2);
+    doc.line(mid + lw2, y + 2, margin + col, y + 2);
     if (v2) { doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black); doc.text(String(v2), mid + lw2 + 3, y); }
   }
 
@@ -1666,7 +1654,7 @@ function generatePDF(data) {
       doc.text(label, x, y);
       const lw = doc.getTextWidth(label) + 5;
       setDraw(C.rule); doc.setLineWidth(0.6);
-      doc.line(x + lw, y - 2, x + fw - 6, y - 2);
+      doc.line(x + lw, y + 2, x + fw - 6, y + 2);
       if (value) { doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black); doc.text(String(value), x + lw + 3, y); }
       x += fw;
     });
@@ -1677,42 +1665,41 @@ function generatePDF(data) {
     doc.text(label, margin, y);
     const lw = labelW || (doc.getTextWidth(label) + 6);
     setDraw(C.rule); doc.setLineWidth(0.6);
-    doc.line(margin + lw, y - 2, margin + col, y - 2);
+    doc.line(margin + lw, y + 2, margin + col, y + 2);
     if (value) { doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black); doc.text(String(value), margin + lw + 3, y); }
   }
 
   function initialItem(num, text, initials, isMedical=false, medValue='') {
-    // box
+    // initial box
     setDraw(C.rule); doc.setLineWidth(0.6);
-    doc.rect(margin, y - 11, 28, 13, 'S');
+    doc.rect(margin, y - 10, 28, 13, 'S');
     if (initials) {
       doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
-      doc.text(initials, margin + 14, y - 2, {align:'center'});
+      doc.text(initials, margin + 14, y, {align:'center'});
     }
     doc.setFont('helvetica','bold'); doc.setFontSize(8); setColor(C.muted);
-    doc.text(num + '.', margin + 32, y - 1);
+    doc.text(num + '.', margin + 32, y);
     doc.setFont('helvetica','normal'); doc.setFontSize(8.5); setColor(C.black);
     const lines = doc.splitTextToSize(text, col - 55);
-    lines.forEach((ln, i) => doc.text(ln, margin + 44, y - 1 - i * 11));
-    y -= Math.max(18, lines.length * 11 + 5);
+    lines.forEach((ln, i) => doc.text(ln, margin + 44, y + i * 11));
+    y += Math.max(18, lines.length * 11 + 5);
 
     if (isMedical) {
       nl(2);
       const hasMed = medValue && medValue.trim() && !['none','n/a'].includes(medValue.toLowerCase());
       if (hasMed) {
         doc.setFillColor(...C.warnBg); doc.setDrawColor(...C.warnBorder); doc.setLineWidth(1.2);
-        doc.rect(margin + 44, y - 36, col - 44, 40, 'FD');
+        doc.rect(margin + 44, y, col - 44, 40, 'FD');
         doc.setFont('helvetica','bold'); doc.setFontSize(8); setColor(C.warnText);
-        doc.text('\u26a0  ARTIST \u2014 REVIEW BEFORE STARTING:', margin + 50, y - 11);
+        doc.text('\u26a0  ARTIST \u2014 REVIEW BEFORE STARTING:', margin + 50, y + 11);
         doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(120, 53, 15);
         const ml = doc.splitTextToSize(medValue, col - 70);
-        ml.slice(0,2).forEach((ln, i) => doc.text(ln, margin + 50, y - 24 - i * 12));
-        y -= 46;
+        ml.slice(0,2).forEach((ln, i) => doc.text(ln, margin + 50, y + 24 + i * 12));
+        y += 46;
       } else {
-        // Two blank write-in lines
         setDraw(C.rule); doc.setLineWidth(0.5);
-        doc.line(margin + 44, y - 2, margin + col, y - 2); nl(14);
-        doc.line(margin + 44, y - 2, margin + col, y - 2); nl(14);
+        doc.line(margin + 44, y + 2, margin + col, y + 2); nl(14);
+        doc.line(margin + 44, y + 2, margin + col, y + 2); nl(14);
       }
       nl(2);
     }
@@ -1724,12 +1711,12 @@ function generatePDF(data) {
       doc.text(label, margin, y); nl(8);
     }
     setDraw(C.rule); doc.setLineWidth(0.6);
-    doc.line(margin, y - height + 10, margin + col, y - height + 10);
+    doc.line(margin, y + height - 10, margin + col, y + height - 10);
     if (sigData) {
-      try { doc.addImage(sigData, 'PNG', margin + 4, y - height + 12, col - 8, height - 14); }
-      catch(e) { try { doc.addImage(sigData, 'JPEG', margin + 4, y - height + 12, col - 8, height - 14); } catch(e2){} }
+      try { doc.addImage(sigData, 'PNG', margin + 4, y, col - 8, height - 14); }
+      catch(e) { try { doc.addImage(sigData, 'JPEG', margin + 4, y, col - 8, height - 14); } catch(e2){} }
     }
-    y -= height;
+    y += height;
   }
 
   // ════════════════════════════════════════
@@ -1737,26 +1724,30 @@ function generatePDF(data) {
   // ════════════════════════════════════════
   const s = data.session; const cl = data.client;
 
+  // Session bar
   fourFields([
     ['DATE:', s.date, 0.22], ['TIME:', s.time, 0.18],
     ['ARTIST:', s.artist, 0.32], ['DEPOSIT:', s.deposit||s.price, 0.28]
   ]); nl(22);
 
+  // Title
   doc.setFont('helvetica','bold'); doc.setFontSize(18); setColor(C.black);
   doc.text('THE CAULDRON TATTOO COLLECTIVE', W/2, y, {align:'center'}); nl(16);
   doc.setFontSize(13);
   doc.text('Release and Consent Form', W/2, y, {align:'center'}); nl(10);
   hline(1.2, C.black); nl(10);
 
+  // Intro
   const intro = 'I acknowledge by signing and filling in these blanks that I have been given the opportunity to ask any questions about obtaining a tattoo from THE CAULDRON. By signing, I confirm all information is true and accurate to the best of my knowledge, and that I have read, understand, and agree to each item below.';
   doc.setFont('helvetica','normal'); doc.setFontSize(8.5); setColor(C.black);
   const introLines = doc.splitTextToSize(intro, col);
-  introLines.forEach((ln,i) => doc.text(ln, margin, y - i*12));
-  y -= introLines.length * 12 + 4;
+  introLines.forEach((ln, i) => doc.text(ln, margin, y + i * 12));
+  y += introLines.length * 12 + 4;
 
   doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
   doc.text('Initial items 1\u20139.  READ CAREFULLY.', margin, y); nl(14);
 
+  // Consent items
   const companion = cl.companion || '________________________________';
   const medical = cl.medical || '';
   const consentItems = [
@@ -1778,9 +1769,9 @@ function generatePDF(data) {
 
   nl(6); hline(0.8, C.black); nl(14);
 
+  // Client info
   doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
   doc.text('CUSTOMER / CLIENT INFORMATION', margin, y); nl(16);
-
   twoFields('Legal Name:', cl.legalName, 'Date:', s.date, 0.68); nl(18);
   twoFields('Preferred Name:', cl.prefName, 'Pronouns:', cl.prefPronouns, 0.55, true, true); nl(18);
   twoFields('Phone:', cl.phone, "Driver's License #:", cl.dlNum, 0.42); nl(18);
@@ -1792,11 +1783,13 @@ function generatePDF(data) {
 
   hline(0.8, C.black); nl(12);
 
+  // Client signature
   doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
   doc.text('\u26a0  Customer/Client Signature:', margin, y); nl(8);
   doc.setFont('helvetica','italic'); doc.setFontSize(8); setColor(C.muted);
   doc.text('I hereby CERTIFY that, to the best of my knowledge, the information above is CORRECT.', margin, y); nl(10);
-  sigLine('', data.signatures?.client, 72);
+  sigLine('', data.signatures && data.signatures.client, 72);
+
   footer();
 
   // ════════════════════════════════════════
@@ -1808,8 +1801,8 @@ function generatePDF(data) {
   doc.setFont('helvetica','italic'); doc.setFontSize(8); setColor(C.muted);
   const minorNote = '*If the customer/client is under the age of 18, all fields below must be completed. Guardian must remain present for the entire procedure or service will be denied.';
   const mnLines = doc.splitTextToSize(minorNote, col);
-  mnLines.forEach((ln,i) => doc.text(ln, margin, y - i*12));
-  y -= mnLines.length * 12 + 10;
+  mnLines.forEach((ln, i) => doc.text(ln, margin, y + i * 12));
+  y += mnLines.length * 12 + 10;
 
   doc.setFont('helvetica','bold'); doc.setFontSize(10); setColor(C.black);
   doc.text('I hereby give my child permission to receive said TATTOO', margin, y); nl(20);
@@ -1817,7 +1810,7 @@ function generatePDF(data) {
   twoFields('Guardian Legal Name:', m.parentName, 'Preferred Name:', m.parentPrefName, 0.52, false, true); nl(18);
   twoFields('Pronouns:', m.parentPronouns, "Guardian Driver's License #:", m.parentDL, 0.30, true); nl(18);
   nl(6);
-  sigLine('Guardian Signature:', data.signatures?.parent, 72);
+  sigLine('Guardian Signature:', data.signatures && data.signatures.parent, 72);
   nl(14);
 
   hline(0.8, C.black); nl(16);
@@ -1829,11 +1822,12 @@ function generatePDF(data) {
 
   twoFields('TATTOO DESIGN:', s.design, 'PLACEMENT:', s.placement, 0.5); nl(20);
   twoFields('FINAL COST:', s.finalCost, 'DATE:', s.date, 0.5); nl(20);
-  sigLine('Artist Signature:', data.signatures?.artist, 72);
+  sigLine('Artist Signature:', data.signatures && data.signatures.artist, 72);
+
   footer();
 
   // ════════════════════════════════════════
-  // PAGE 3 — ID Photos (if any exist)
+  // PAGE 3 — ID Photos
   // ════════════════════════════════════════
   const photos = [];
   if (data.idPhoto) photos.push({ label: data.isMinor ? 'Minor / Patron Photo ID' : 'Patron Photo ID', src: data.idPhoto });
@@ -1851,27 +1845,28 @@ function generatePDF(data) {
     doc.setFont('helvetica','normal'); doc.setFontSize(8); setColor(C.muted);
     const nameStr = (cl.prefName || cl.legalName) + (cl.prefPronouns ? ' (' + cl.prefPronouns + ')' : '');
     doc.text('Client: ' + nameStr, margin, y);
-    doc.text('Date: ' + s.date + '  ·  Artist: ' + s.artist, W - margin, y, {align:'right'});
+    doc.text('Date: ' + s.date + '  \u00b7  Artist: ' + s.artist, W - margin, y, {align:'right'});
     nl(20);
 
-    const photoW = col;
     const photoH = 180;
     photos.forEach(({ label, src }) => {
       doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
       doc.text(label, margin, y); nl(8);
-      try { doc.addImage(src, 'JPEG', margin, y - photoH, photoW, photoH); }
-      catch(e) { try { doc.addImage(src, 'PNG', margin, y - photoH, photoW, photoH); } catch(e2) {
+      try { doc.addImage(src, 'JPEG', margin, y, col, photoH); }
+      catch(e) { try { doc.addImage(src, 'PNG', margin, y, col, photoH); } catch(e2) {
         setDraw(C.rule); doc.setLineWidth(0.5);
-        doc.rect(margin, y - photoH, photoW, photoH, 'S');
+        doc.rect(margin, y, col, photoH, 'S');
         doc.setFont('helvetica','italic'); doc.setFontSize(9); setColor(C.muted);
-        doc.text('Photo not available', W/2, y - photoH/2, {align:'center'});
+        doc.text('Photo not available', W/2, y + photoH/2, {align:'center'});
       }}
-      y -= photoH + 20; nl(10);
+      y += photoH + 30;
     });
     footer();
   }
 
-  // Save — download to tablet
+  // ════════════════════════════════════════
+  // Download + Drive upload
+  // ════════════════════════════════════════
   const fname = s.date + '_' + (cl.legalName||'Client').replace(/\s+/g,'_') + '_Consent.pdf';
   try {
     const pdfBlob = doc.output('blob');
@@ -1889,7 +1884,6 @@ function generatePDF(data) {
     window.open(dataUri, '_blank');
   }
 
-  // Send PDF to Google Drive as base64
   if (scriptUrl) {
     try {
       const b64 = doc.output('datauristring').split(',')[1];
@@ -1897,11 +1891,7 @@ function generatePDF(data) {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pdf: b64,
-          clientName: cl.legalName || 'Client',
-          date: s.date
-        })
+        body: JSON.stringify({ pdf: b64, clientName: cl.legalName || 'Client', date: s.date })
       }).catch(() => {});
     } catch(e) {}
   }
