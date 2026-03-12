@@ -1333,16 +1333,12 @@ function calcAge() {
   // Auto-open minor section if under 18
   const minorCheck = document.getElementById('isMinor');
   if (minorCheck) {
-    if (age < 18) {
-      if (!minorCheck.checked) {
-        minorCheck.checked = true;
-        document.getElementById('minorSection').style.display = 'block';
-      }
-    } else {
-      if (minorCheck.checked) {
-        minorCheck.checked = false;
-        document.getElementById('minorSection').style.display = 'none';
-      }
+    if (age < 18 && !minorCheck.checked) {
+      minorCheck.checked = true;
+      toggleMinor(minorCheck);
+    } else if (age >= 18 && minorCheck.checked) {
+      minorCheck.checked = false;
+      toggleMinor(minorCheck);
     }
   }
   // Visual feedback
