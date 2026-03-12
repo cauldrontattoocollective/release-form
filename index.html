@@ -1502,6 +1502,7 @@ function handlePhoto(input, previewId, wrapId, dataId, placeholderId, extraCb) {
 function openCropModal(img) {
   const modal = document.getElementById('cropModal');
   const canvas = document.getElementById('cropCanvas');
+  canvas._cropBound = false; // reset so events rebind for this new photo
   modal.style.display = 'flex';
 
   // Scale image to fit canvas display width
@@ -1524,13 +1525,12 @@ function openCropModal(img) {
   _crop.w = bw;
   _crop.h = bh;
 
-  // Delay draw until modal is visible in DOM and canvas has layout
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      drawCrop();
-      bindCropEvents(canvas);
-    });
-  });
+  // setTimeout gives Android Chrome time to fully paint the modal
+  // before we draw on the canvas — rAF is not enough on mobile
+  setTimeout(() => {
+    drawCrop();
+    bindCropEvents(canvas);
+  }, 80);
 }
 
 function drawCrop() {
@@ -1589,10 +1589,10 @@ function getHandle(px, py) {
 }
 
 function bindCropEvents(canvas) {
-  // Remove old listeners by cloning
-  const nc = canvas.cloneNode(true);
-  canvas.parentNode.replaceChild(nc, canvas);
-  const c = document.getElementById('cropCanvas');
+  // Use a single persistent listener set via a flag — cloning destroys drawn content
+  if (canvas._cropBound) return;
+  canvas._cropBound = true;
+  const c = canvas;
 
   function onDown(e) {
     e.preventDefault();
@@ -1687,7 +1687,6 @@ function rotateCrop() {
   const rotImg = new Image();
   rotImg.onload = () => {
     _crop.img = rotImg;
-    // Recalculate default crop box for new dimensions
     const iw = rotImg.width, ih = rotImg.height;
     const cardAspect = 1.586;
     let bw = iw * 0.85;
@@ -1697,15 +1696,15 @@ function rotateCrop() {
     _crop.y = (ih - bh) / 2;
     _crop.w = bw;
     _crop.h = bh;
-    // Resize canvas
     const canvas = document.getElementById('cropCanvas');
     const displayW = Math.min(528, window.innerWidth - 64);
     canvas.width = iw;
     canvas.height = ih;
     canvas.style.width = displayW + 'px';
     canvas.style.height = (ih * displayW / iw) + 'px';
-    drawCrop();
+    canvas._cropBound = false; // allow rebind after rotation
     bindCropEvents(canvas);
+    setTimeout(() => drawCrop(), 80);
   };
   rotImg.src = rotCanvas.toDataURL('image/jpeg', 0.95);
 }
@@ -2420,13 +2419,4 @@ function nextClient() {
   // Clear status bars
   ['clientStatus','artistStatus'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.className = 'status-bar';
-  });
-
-  showPage('page1');
-  window.scrollTo(0, 0);
-}
-</script>
-
-</body>
-</html>
+    if (el) el.className = 'status-
