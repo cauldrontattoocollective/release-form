@@ -1158,30 +1158,14 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
   <div class="confirm-screen">
 
     <div class="confirm-check" aria-label="Form submitted successfully">✓</div>
-
-    <div class="confirm-client-name" id="confirmName">—</div>
-    <div class="confirm-pronouns" id="confirmPronouns"></div>
     <div class="confirm-pill">✓ Form Submitted</div>
 
-    <!-- Client summary card — name + pronouns only -->
-    <div class="confirm-card" role="region" aria-label="Client summary">
-      <div class="confirm-card-title">Client</div>
-      <div class="confirm-detail">
-        <span class="confirm-detail-label">Name</span>
-        <span class="confirm-detail-value" id="cDisplayName">—</span>
-      </div>
-      <div class="confirm-detail" id="cLegalNameRow" style="display:none;">
-        <span class="confirm-detail-label">Legal Name</span>
-        <span class="confirm-detail-value" id="cLegalName">—</span>
-      </div>
-      <div class="confirm-detail" id="cPronounRow" style="display:none;">
-        <span class="confirm-detail-label">Pronouns</span>
-        <span class="confirm-detail-value" id="cPronounDetail">—</span>
-      </div>
+    <!-- Who completed this form -->
+    <div style="text-align:center; margin: 10px 0 18px;">
+      <div style="font-size:13px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">Form completed by</div>
+      <div id="confirmClientLine" style="font-size:20px; font-weight:700; color:var(--text);"></div>
+      <div id="confirmGuardianLine" style="display:none; font-size:15px; color:var(--text-muted); margin-top:4px;"></div>
     </div>
-
-    <!-- Medical alert card — always shown, prominent for artist awareness -->
-    <div id="cMedCard" role="region" aria-label="Medical information" aria-live="polite"></div>
 
     <!-- Tattoo summary -->
     <div class="confirm-card" role="region" aria-label="Tattoo details">
@@ -1194,63 +1178,23 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
         <span class="confirm-detail-label">Placement</span>
         <span class="confirm-detail-value" id="cPlacement">—</span>
       </div>
-      <div class="confirm-detail">
-        <span class="confirm-detail-label">Artist</span>
-        <span class="confirm-detail-value" id="cArtist">—</span>
-      </div>
     </div>
 
-    <!-- ID photo preview -->
-    <div class="confirm-card" id="idPreviewCard" role="region" aria-label="ID photo">
-      <div class="confirm-card-title">ID on File</div>
-      <img class="id-thumb" id="confirmIDPhoto" src="" alt="Client ID photo" onclick="openLightbox(this.src)" title="Tap to enlarge">
-      <div class="sig-hint" style="margin-top:6px;">Tap photo to enlarge</div>
-    </div>
+    <!-- Medical alert — always shown -->
+    <div id="cMedCard" role="region" aria-label="Medical information" aria-live="polite"></div>
 
-    <!-- Guardian card (shown only if minor) -->
-
-    <div class="confirm-card" id="cGuardianCard" style="display:none;" role="region" aria-label="Guardian details">
-      <div class="confirm-card-title">Accompanied by Legal Guardian</div>
-      <div class="confirm-detail">
-        <span class="confirm-detail-label">Name</span>
-        <span class="confirm-detail-value" id="cGuardianDisplayName">—</span>
-      </div>
-      <div class="confirm-detail" id="cGuardianLegalRow" style="display:none;">
-        <span class="confirm-detail-label">Legal Name</span>
-        <span class="confirm-detail-value" id="cGuardianName">—</span>
-      </div>
-      <div class="confirm-detail" id="cGuardianPronounRow" style="display:none;">
-        <span class="confirm-detail-label">Pronouns</span>
-        <span class="confirm-detail-value" id="cGuardianPronouns">—</span>
-      </div>
-    </div>
-
-    <!-- Guardian ID photo -->
-    <div class="confirm-card" id="guardianIDPreviewCard" style="display:none;" role="region" aria-label="Guardian ID photo">
-      <div class="confirm-card-title">Guardian ID on File</div>
-      <img class="id-thumb" id="confirmGuardianIDPhoto" src="" alt="Guardian ID photo" onclick="openLightbox(this.src)" title="Tap to enlarge">
-      <div class="sig-hint" style="margin-top:6px;">Tap photo to enlarge</div>
-    </div>
-
-    <div class="confirm-card" id="guardianProofPreviewCard" style="display:none;" role="region" aria-label="Proof of guardianship">
-      <div class="confirm-card-title">Proof of Guardianship on File</div>
-      <img class="id-thumb" id="confirmGuardianProof" src="" alt="Proof of guardianship" onclick="openLightbox(this.src)" title="Tap to enlarge">
-      <div class="sig-hint" style="margin-top:6px;">Tap photo to enlarge</div>
-    </div>
-
-    <!-- Minor ID photo -->
-    <div class="confirm-card" id="minorIDPreviewCard" style="display:none;" role="region" aria-label="Minor ID photo">
-      <div class="confirm-card-title">Minor ID on File</div>
-      <img class="id-thumb" id="confirmMinorIDPhoto" src="" alt="Minor ID photo" onclick="openLightbox(this.src)" title="Tap to enlarge">
-      <div class="sig-hint" style="margin-top:6px;">Tap photo to enlarge</div>
+    <!-- IDs on file -->
+    <div class="confirm-card" id="idPreviewCard" style="display:none;" role="region" aria-label="IDs on file">
+      <div class="confirm-card-title">IDs on File</div>
+      <div id="idPhotosContainer"></div>
     </div>
 
     <!-- Drive link -->
     <div class="confirm-card" id="driveCard" style="display:none;" role="region" aria-label="Google Drive link">
       <div class="confirm-card-title">Google Drive</div>
-      <div id="driveStatus" style="font-size:14px;margin-bottom:8px;color:#555;">⏳ Uploading to Drive...</div>
+      <div id="driveStatus" style="font-size:14px; margin-bottom:8px; color:#555;">⏳ Uploading to Drive...</div>
       <a class="drive-link" id="driveLink" href="#" target="_blank" rel="noopener">
-        📄 Search for this form in Drive
+        📄 Open PDF in Drive
       </a>
     </div>
 
@@ -1267,6 +1211,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 <script>
 // ─── STATE ───────────────────────────────────────────────
 let scriptUrl = localStorage.getItem('cauldron_script') || '';
+const DRIVE_FOLDER_ID = '1Sm-St0oh7YPx1AIV0sQBz7SJce1Lb9or';
 window._scriptUrl = scriptUrl;
 const sigStates = {};
 
@@ -1831,9 +1776,9 @@ function generatePDF(data) {
   // PAGE 3 — ID Photos
   // ════════════════════════════════════════
   const photos = [];
-  if (data.idPhoto) photos.push({ label: data.isMinor ? 'Minor / Patron Photo ID' : 'Patron Photo ID', src: data.idPhoto });
-  if (data.parentIDPhoto) photos.push({ label: 'Legal Guardian Photo ID', src: data.parentIDPhoto });
-  if (data.guardianProofPhoto) photos.push({ label: 'Proof of Guardianship', src: data.guardianProofPhoto });
+  if (data.idPhoto) photos.push({ label: data.isMinor ? 'Minor / Patron Photo ID' : 'Patron Photo ID', src: data.idPhoto, isDoc: false });
+  if (data.parentIDPhoto) photos.push({ label: 'Legal Guardian Photo ID', src: data.parentIDPhoto, isDoc: false });
+  if (data.guardianProofPhoto) photos.push({ label: 'Proof of Guardianship', src: data.guardianProofPhoto, isDoc: true });
 
   if (photos.length > 0) {
     newPage();
@@ -1843,25 +1788,51 @@ function generatePDF(data) {
     doc.text('ID Documents on File', W/2, y, {align:'center'}); nl(8);
     hline(1.2, C.black); nl(16);
 
+    // Client header — legal name for ID comparison
     doc.setFont('helvetica','normal'); doc.setFontSize(8); setColor(C.muted);
-    const nameStr = (cl.prefName || cl.legalName) + (cl.prefPronouns ? ' (' + cl.prefPronouns + ')' : '');
-    doc.text('Client: ' + nameStr, margin, y);
+    const prefPart = cl.prefName ? cl.prefName + (cl.prefPronouns ? ' (' + cl.prefPronouns + ')' : '') + '  ·  Legal: ' : '';
+    doc.text('Client: ' + prefPart + cl.legalName, margin, y);
     doc.text('Date: ' + s.date + '  \u00b7  Artist: ' + s.artist, W - margin, y, {align:'right'});
     nl(20);
 
-    const photoH = 180;
-    photos.forEach(({ label, src }) => {
+    // Helper: draw image preserving aspect ratio, centered, max width = col
+    function addPhotoPreserved(src, label, isDoc) {
       doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
-      doc.text(label, margin, y); nl(8);
-      try { doc.addImage(src, 'JPEG', margin, y, col, photoH); }
-      catch(e) { try { doc.addImage(src, 'PNG', margin, y, col, photoH); } catch(e2) {
+      doc.text(label, margin, y); nl(6);
+
+      const img = new Image();
+      img.src = src;
+      const iw = img.naturalWidth || 1600;
+      const ih = img.naturalHeight || 900;
+      const aspect = iw / ih;
+
+      let drawW, drawH;
+      if (isDoc) {
+        // Documents (birth cert etc) — fit to page width, natural height
+        drawW = col;
+        drawH = col / aspect;
+        if (drawH > 320) { drawH = 320; drawW = drawH * aspect; }
+      } else {
+        // IDs — landscape card: max width col, max height ~140pt
+        const maxH = 140;
+        drawW = Math.min(col, maxH * aspect);
+        drawH = drawW / aspect;
+      }
+
+      // Center horizontally
+      const xOff = margin + (col - drawW) / 2;
+
+      try { doc.addImage(src, 'JPEG', xOff, y, drawW, drawH); }
+      catch(e) { try { doc.addImage(src, 'PNG', xOff, y, drawW, drawH); } catch(e2) {
         setDraw(C.rule); doc.setLineWidth(0.5);
-        doc.rect(margin, y, col, photoH, 'S');
+        doc.rect(margin, y, col, drawH, 'S');
         doc.setFont('helvetica','italic'); doc.setFontSize(9); setColor(C.muted);
-        doc.text('Photo not available', W/2, y + photoH/2, {align:'center'});
+        doc.text('Photo not available', W/2, y + drawH/2, {align:'center'});
       }}
-      y += photoH + 30;
-    });
+      y += drawH + 24;
+    }
+
+    photos.forEach(({ label, src, isDoc }) => addPhotoPreserved(src, label, isDoc));
     footer();
   }
 
@@ -1894,18 +1865,28 @@ function generatePDF(data) {
   // 2. Upload PDF to Google Drive
   if (scriptUrl && b64) {
     const driveStatus = document.getElementById('driveStatus');
+    const driveLink = document.getElementById('driveLink');
     if (driveStatus) driveStatus.textContent = '⏳ Uploading to Drive...';
-    // Apps Script with no-cors requires sending as plain text, not JSON content-type
-    // We encode our JSON payload as a URL param so Apps Script can read e.parameter.data
+
+    // Apps Script requires no-cors for cross-origin POST, but then we can't read the response.
+    // Workaround: send as query param via GET-style POST so Apps Script can log it,
+    // OR use a form-encoded POST which Apps Script handles via e.postData
     const payload = JSON.stringify({ pdf: b64, clientName: cl.legalName || 'Client', date: s.date });
     fetch(scriptUrl, {
       method: 'POST',
       mode: 'no-cors',
-      body: new URLSearchParams({ data: payload })
+      headers: { 'Content-Type': 'text/plain' },
+      body: payload
     }).then(() => {
       if (driveStatus) driveStatus.textContent = '✓ Saved to Google Drive';
-    }).catch((err) => {
-      if (driveStatus) driveStatus.textContent = '⚠ Drive upload failed — PDF saved locally';
+      if (driveLink) {
+        // Can't get file ID with no-cors — link to folder search instead
+        const fname = s.date + '_' + (cl.legalName||'Client').replace(/\s+/g,'_') + '_Consent.pdf';
+        driveLink.href = 'https://drive.google.com/drive/folders/' + DRIVE_FOLDER_ID;
+        driveLink.style.display = 'block';
+      }
+    }).catch(() => {
+      if (driveStatus) driveStatus.textContent = '⚠ Could not reach Drive — PDF saved locally';
     });
   }
 }
@@ -1968,105 +1949,84 @@ function collectData() {
 function buildConfirmScreen(data) {
   const { client, session } = data;
 
-  // Display name logic: preferred name > legal name
-  const displayName = client.prefName || client.legalName;
-  document.getElementById('confirmName').textContent = displayName;
+  // ── "Form completed by" line ──────────────────────────────
+  const clientDisplay = (client.prefName || client.legalName) +
+    (client.prefPronouns ? ' (' + client.prefPronouns + ')' : '');
+  document.getElementById('confirmClientLine').textContent = clientDisplay;
 
-  // Pronouns display
-  const pronounEl = document.getElementById('confirmPronouns');
-  pronounEl.textContent = client.prefPronouns ? client.prefPronouns : '';
-
-  // Client card — preferred name or legal, pronouns in parens if set
-  const clientDisplayName = client.prefName
-    ? client.prefName + (client.prefPronouns ? ' (' + client.prefPronouns + ')' : '')
-    : client.legalName + (client.prefPronouns ? ' (' + client.prefPronouns + ')' : '');
-  document.getElementById('cDisplayName').textContent = clientDisplayName;
-  // Show legal name separately only if they have a preferred name
-  if (client.prefName) {
-    document.getElementById('cLegalName').textContent = client.legalName;
-    document.getElementById('cLegalNameRow').style.display = 'flex';
-  }
-  if (client.prefPronouns) {
-    document.getElementById('cPronounDetail').textContent = client.prefPronouns;
-    document.getElementById('cPronounRow').style.display = 'flex';
+  // Guardian line — only if minor
+  const guardianLine = document.getElementById('confirmGuardianLine');
+  if (data.isMinor && data.minor && data.minor.parentName) {
+    const m = data.minor;
+    const gDisplay = 'Accompanied by ' +
+      (m.parentPrefName || m.parentName) +
+      (m.parentPronouns ? ' (' + m.parentPronouns + ')' : '');
+    guardianLine.textContent = gDisplay;
+    guardianLine.style.display = 'block';
+  } else {
+    guardianLine.style.display = 'none';
   }
 
-  // Medical card — prominent alert if conditions listed, green clear if none
+  // ── Tattoo ────────────────────────────────────────────────
+  document.getElementById('cDesign').textContent = session.design || '—';
+  document.getElementById('cPlacement').textContent = session.placement || '—';
+
+  // ── Medical card ──────────────────────────────────────────
   const medCard = document.getElementById('cMedCard');
   const hasMed = client.medical && client.medical.toLowerCase() !== 'none' && client.medical.trim();
   if (hasMed) {
     medCard.innerHTML = `
-      <div style="background:#fef3c7; border:2px solid #f59e0b; border-radius:8px; padding:18px 20px; margin-bottom:16px;">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+      <div style="background:#fef3c7;border:2px solid #f59e0b;border-radius:8px;padding:18px 20px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
           <span style="font-size:22px;">⚠️</span>
-          <strong style="font-size:15px; letter-spacing:1px; text-transform:uppercase; color:#92400e;">Medical — Artist Please Review</strong>
+          <strong style="font-size:15px;letter-spacing:1px;text-transform:uppercase;color:#92400e;">Medical — Artist Please Review</strong>
         </div>
-        <div style="font-size:16px; color:#78350f; line-height:1.6; background:white; border-radius:6px; padding:12px 14px; border:1px solid #fde68a;">
+        <div style="font-size:16px;color:#78350f;line-height:1.6;background:white;border-radius:6px;padding:12px 14px;border:1px solid #fde68a;">
           ${client.medical}
         </div>
-        <div style="font-size:13px; color:#92400e; margin-top:10px; font-style:italic;">
+        <div style="font-size:13px;color:#92400e;margin-top:10px;font-style:italic;">
           Consider how these conditions or medications may affect this session and healing. Speak with the client before beginning if needed.
         </div>
       </div>`;
   } else {
     medCard.innerHTML = `
-      <div style="background:#f0faf4; border:1px solid #90c490; border-radius:8px; padding:14px 18px; display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+      <div style="background:#f0faf4;border:1px solid #90c490;border-radius:8px;padding:14px 18px;display:flex;align-items:center;gap:10px;margin-bottom:16px;">
         <span style="font-size:20px;">✅</span>
-        <span style="font-size:15px; color:#2d5a2d; font-weight:700;">No medical conditions reported</span>
+        <span style="font-size:15px;color:#2d5a2d;font-weight:700;">No medical conditions reported</span>
       </div>`;
   }
 
-  document.getElementById('cDesign').textContent = session.design;
-  document.getElementById('cPlacement').textContent = session.placement;
-  document.getElementById('cArtist').textContent = session.artist;
+  // ── IDs on file ───────────────────────────────────────────
+  const idContainer = document.getElementById('idPhotosContainer');
+  idContainer.innerHTML = '';
+  const idCard = document.getElementById('idPreviewCard');
 
-  // ID photo
+  function addIDPhoto(src, label) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-bottom:14px;';
+    wrap.innerHTML = `
+      <div style="font-size:12px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">${label}</div>
+      <img class="id-thumb" src="${src}" alt="${label}" onclick="openLightbox(this.src)" title="Tap to enlarge" style="cursor:pointer;">
+      <div class="sig-hint" style="margin-top:4px;">Tap to enlarge</div>`;
+    idContainer.appendChild(wrap);
+  }
+
+  let hasAnyID = false;
   if (data.idPhoto) {
-    document.getElementById('confirmIDPhoto').src = data.idPhoto;
-    document.getElementById('idPreviewCard').style.display = 'block';
-  } else {
-    document.getElementById('idPreviewCard').style.display = 'none';
+    addIDPhoto(data.idPhoto, data.isMinor ? 'Minor Photo ID' : 'Patron Photo ID');
+    hasAnyID = true;
   }
-
-  // Minor / guardian cards
-  if (data.isMinor && data.minor) {
-    const m = data.minor;
-
-    document.getElementById('cGuardianCard').style.display = 'block';
-    // Guardian display name — preferred or legal, with pronouns in parens
-    const gDisplayName = m.parentPrefName
-      ? m.parentPrefName + (m.parentPronouns ? ' (' + m.parentPronouns + ')' : '')
-      : m.parentName + (m.parentPronouns ? ' (' + m.parentPronouns + ')' : '');
-    document.getElementById('cGuardianDisplayName').textContent = gDisplayName || '—';
-    if (m.parentPrefName) {
-      document.getElementById('cGuardianName').textContent = m.parentName || '—';
-      document.getElementById('cGuardianLegalRow').style.display = 'flex';
-    }
-    if (m.parentPronouns) {
-      document.getElementById('cGuardianPronouns').textContent = m.parentPronouns;
-      document.getElementById('cGuardianPronounRow').style.display = 'flex';
-    }
-
-    if (data.parentIDPhoto) {
-      document.getElementById('confirmGuardianIDPhoto').src = data.parentIDPhoto;
-      document.getElementById('guardianIDPreviewCard').style.display = 'block';
-    }
-    if (data.guardianProofPhoto) {
-      document.getElementById('confirmGuardianProof').src = data.guardianProofPhoto;
-      document.getElementById('guardianProofPreviewCard').style.display = 'block';
-    }
-    if (data.minorIDPhoto) {
-      document.getElementById('confirmMinorIDPhoto').src = data.minorIDPhoto;
-      document.getElementById('minorIDPreviewCard').style.display = 'block';
-    }
+  if (data.isMinor) {
+    if (data.parentIDPhoto) { addIDPhoto(data.parentIDPhoto, 'Guardian Photo ID'); hasAnyID = true; }
+    if (data.guardianProofPhoto) { addIDPhoto(data.guardianProofPhoto, 'Proof of Guardianship'); hasAnyID = true; }
   }
+  idCard.style.display = hasAnyID ? 'block' : 'none';
 
-  // Drive card — always show if scriptUrl configured
+  // ── Drive card ────────────────────────────────────────────
   if (scriptUrl) {
     document.getElementById('driveCard').style.display = 'block';
     document.getElementById('driveStatus').textContent = '⏳ Uploading to Drive...';
-    const fname = data.session.date + '_' + (data.client.legalName||'Client').replace(/\s+/g,'_') + '_Consent.pdf';
-    document.getElementById('driveLink').href = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(fname);
+    // driveLink href gets set in generatePDF once we have the file ID
   }
 }
 
