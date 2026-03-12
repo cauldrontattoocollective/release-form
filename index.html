@@ -681,6 +681,22 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
   <img id="lightboxImg" src="" alt="ID photo enlarged">
 </div>
 
+<!-- Crop Modal -->
+<div id="cropModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;padding:16px;">
+  <div style="width:100%;max-width:560px;background:#1a1a1a;border-radius:12px;padding:16px;margin:auto;">
+    <div style="font-size:16px;font-weight:700;color:#fff;margin-bottom:6px;text-align:center;">Crop your photo</div>
+    <div style="font-size:13px;color:#aaa;text-align:center;margin-bottom:12px;">Drag the box to frame the ID card, then tap Confirm.</div>
+    <div style="position:relative;width:100%;touch-action:none;" id="cropContainer">
+      <canvas id="cropCanvas" style="width:100%;border-radius:8px;display:block;"></canvas>
+      <!-- crop overlay drawn on canvas -->
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button onclick="cancelCrop()" style="flex:1;padding:14px;background:#333;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;">✕ Retake</button>
+      <button onclick="confirmCrop()" style="flex:2;padding:14px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;">✓ Use This Crop</button>
+    </div>
+  </div>
+</div>
+
 <!-- Setup Modal -->
 <div class="modal-bg" id="setupModal" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
   <div class="modal">
@@ -1106,7 +1122,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
       <div style="margin-top:10px;">
         <label style="display:inline-block; cursor:pointer; background:var(--bg); border:2px solid var(--border); border-radius:var(--radius); padding:8px 16px; font-size:13px; font-weight:700; color:var(--text-muted);">
           ↺ Retake Client ID
-          <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="handlePhoto(this,'idPhotoPreview','idPhotoWrap','idPhotoData','clientPhotoPlaceholder'); updateArtistThumb();">
+          <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="handlePhoto(this,'idPhotoPreview','idPhotoWrap','idPhotoData','clientPhotoPlaceholder', updateArtistThumb)">
         </label>
       </div>
     </div>
@@ -1121,7 +1137,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     <div style="margin-top:10px;">
       <label style="display:inline-block; cursor:pointer; background:var(--bg); border:2px solid var(--border); border-radius:var(--radius); padding:8px 16px; font-size:13px; font-weight:700; color:var(--text-muted);">
         ↺ Retake Guardian ID
-        <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="handlePhoto(this,'pidPhotoPreview','pidPhotoWrap','pidPhotoData','parentPhotoPlaceholder'); updateArtistThumb();">
+        <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="handlePhoto(this,'pidPhotoPreview','pidPhotoWrap','pidPhotoData','parentPhotoPlaceholder', updateArtistThumb)">
       </label>
     </div>
   </div>
@@ -1133,7 +1149,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     <div style="margin-top:10px;">
       <label style="display:inline-block; cursor:pointer; background:var(--bg); border:2px solid var(--border); border-radius:var(--radius); padding:8px 16px; font-size:13px; font-weight:700; color:var(--text-muted);">
         ↺ Retake Document
-        <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="handlePhoto(this,'pogPhotoPreview','pogPhotoWrap','pogPhotoData','pogPhotoPlaceholder'); updateArtistThumb();">
+        <input type="file" accept="image/*" capture="environment" style="display:none;" onchange="handlePhoto(this,'pogPhotoPreview','pogPhotoWrap','pogPhotoData','pogPhotoPlaceholder', updateArtistThumb)">
       </label>
     </div>
   </div>
@@ -1355,32 +1371,206 @@ function clearSig(canvasId, dataId) {
 }
 
 // ─── PHOTOS ───────────────────────────────────────────────
-function handlePhoto(input, previewId, wrapId, dataId, placeholderId) {
+// ─── CROP STATE ───────────────────────────────────────────
+const _crop = {
+  img: null, dataId: null, previewId: null, wrapId: null, placeholderId: null,
+  inputEl: null, extraCb: null,
+  // crop box in canvas coords
+  x: 0, y: 0, w: 0, h: 0,
+  dragging: false, resizing: false, dragStartX: 0, dragStartY: 0,
+  boxStartX: 0, boxStartY: 0, boxStartW: 0, boxStartH: 0,
+  handle: null // which resize handle: 'tl','tr','bl','br'
+};
+
+function handlePhoto(input, previewId, wrapId, dataId, placeholderId, extraCb) {
   if (!input.files || !input.files[0]) return;
   const reader = new FileReader();
   reader.onload = e => {
-    // Compress image before storing — keeps PDF fast and Drive uploads small
     const img = new Image();
     img.onload = () => {
-      const MAX = 1000; // max width or height in px — plenty for ID verification
-      let w = img.width, h = img.height;
-      if (w > MAX || h > MAX) {
-        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-        else { w = Math.round(w * MAX / h); h = MAX; }
-      }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      const compressed = canvas.toDataURL('image/jpeg', 0.75); // 75% quality JPEG
-      document.getElementById(dataId).value = compressed;
-      document.getElementById(previewId).src = compressed;
-      document.getElementById(wrapId).style.display = 'block';
-      const ph = document.getElementById(placeholderId);
-      if (ph) ph.style.display = 'none';
+      _crop.img = img;
+      _crop.dataId = dataId;
+      _crop.previewId = previewId;
+      _crop.wrapId = wrapId;
+      _crop.placeholderId = placeholderId;
+      _crop.inputEl = input;
+      _crop.extraCb = extraCb || null;
+      openCropModal(img);
     };
     img.src = e.target.result;
   };
   reader.readAsDataURL(input.files[0]);
+}
+
+function openCropModal(img) {
+  const modal = document.getElementById('cropModal');
+  const canvas = document.getElementById('cropCanvas');
+  modal.style.display = 'flex';
+
+  // Scale image to fit canvas display width
+  const displayW = Math.min(528, window.innerWidth - 64);
+  const scale = displayW / img.width;
+  const displayH = img.height * scale;
+
+  canvas.width = img.width;
+  canvas.height = img.height;
+  canvas.style.width = displayW + 'px';
+  canvas.style.height = displayH + 'px';
+
+  // Default crop box: centered, 80% of image, ID card aspect ~1.586 (credit card ratio)
+  const cardAspect = 1.586;
+  let bw = img.width * 0.85;
+  let bh = bw / cardAspect;
+  if (bh > img.height * 0.85) { bh = img.height * 0.85; bw = bh * cardAspect; }
+  _crop.x = (img.width - bw) / 2;
+  _crop.y = (img.height - bh) / 2;
+  _crop.w = bw;
+  _crop.h = bh;
+
+  drawCrop();
+  bindCropEvents(canvas);
+}
+
+function drawCrop() {
+  const canvas = document.getElementById('cropCanvas');
+  const ctx = canvas.getContext('2d');
+  const { img, x, y, w, h } = _crop;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0);
+
+  // Dark overlay outside crop
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, 0, canvas.width, y);
+  ctx.fillRect(0, y + h, canvas.width, canvas.height - y - h);
+  ctx.fillRect(0, y, x, h);
+  ctx.fillRect(x + w, y, canvas.width - x - w, h);
+
+  // Crop border
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x, y, w, h);
+
+  // Rule-of-thirds grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 3; i++) {
+    ctx.beginPath(); ctx.moveTo(x + w*i/3, y); ctx.lineTo(x + w*i/3, y+h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, y + h*i/3); ctx.lineTo(x+w, y + h*i/3); ctx.stroke();
+  }
+
+  // Corner handles
+  const hs = 22;
+  ctx.fillStyle = '#fff';
+  [[x,y],[x+w-hs,y],[x,y+h-hs],[x+w-hs,y+h-hs]].forEach(([hx,hy]) => {
+    ctx.fillRect(hx, hy, hs, hs);
+  });
+}
+
+function getCanvasPoint(canvas, e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+}
+
+function getHandle(px, py) {
+  const { x, y, w, h } = _crop;
+  const hs = 30; // hit area
+  if (px < x+hs && py < y+hs) return 'tl';
+  if (px > x+w-hs && py < y+hs) return 'tr';
+  if (px < x+hs && py > y+h-hs) return 'bl';
+  if (px > x+w-hs && py > y+h-hs) return 'br';
+  return null;
+}
+
+function bindCropEvents(canvas) {
+  // Remove old listeners by cloning
+  const nc = canvas.cloneNode(true);
+  canvas.parentNode.replaceChild(nc, canvas);
+  const c = document.getElementById('cropCanvas');
+
+  function onDown(e) {
+    e.preventDefault();
+    const p = getCanvasPoint(c, e);
+    const handle = getHandle(p.x, p.y);
+    _crop.dragStartX = p.x; _crop.dragStartY = p.y;
+    _crop.boxStartX = _crop.x; _crop.boxStartY = _crop.y;
+    _crop.boxStartW = _crop.w; _crop.boxStartH = _crop.h;
+    if (handle) { _crop.resizing = true; _crop.handle = handle; }
+    else if (p.x > _crop.x && p.x < _crop.x+_crop.w && p.y > _crop.y && p.y < _crop.y+_crop.h) {
+      _crop.dragging = true;
+    }
+  }
+
+  function onMove(e) {
+    e.preventDefault();
+    if (!_crop.dragging && !_crop.resizing) return;
+    const p = getCanvasPoint(c, e);
+    const dx = p.x - _crop.dragStartX;
+    const dy = p.y - _crop.dragStartY;
+    const iw = _crop.img.width, ih = _crop.img.height;
+    const minSz = 60;
+
+    if (_crop.dragging) {
+      _crop.x = Math.max(0, Math.min(iw - _crop.w, _crop.boxStartX + dx));
+      _crop.y = Math.max(0, Math.min(ih - _crop.h, _crop.boxStartY + dy));
+    } else {
+      let nx = _crop.boxStartX, ny = _crop.boxStartY;
+      let nw = _crop.boxStartW, nh = _crop.boxStartH;
+      const h = _crop.handle;
+      if (h === 'tl') { nx += dx; ny += dy; nw -= dx; nh -= dy; }
+      else if (h === 'tr') { nw += dx; ny += dy; nh -= dy; }
+      else if (h === 'bl') { nx += dx; nw -= dx; nh += dy; }
+      else if (h === 'br') { nw += dx; nh += dy; }
+      if (nw > minSz && nh > minSz && nx >= 0 && ny >= 0 && nx+nw <= iw && ny+nh <= ih) {
+        _crop.x = nx; _crop.y = ny; _crop.w = nw; _crop.h = nh;
+      }
+    }
+    drawCrop();
+  }
+
+  function onUp(e) { _crop.dragging = false; _crop.resizing = false; }
+
+  c.addEventListener('mousedown', onDown);
+  c.addEventListener('mousemove', onMove);
+  c.addEventListener('mouseup', onUp);
+  c.addEventListener('touchstart', onDown, {passive:false});
+  c.addEventListener('touchmove', onMove, {passive:false});
+  c.addEventListener('touchend', onUp);
+}
+
+function confirmCrop() {
+  const { img, x, y, w, h, dataId, previewId, wrapId, placeholderId, extraCb } = _crop;
+  const out = document.createElement('canvas');
+  out.width = Math.round(w); out.height = Math.round(h);
+  out.getContext('2d').drawImage(img, x, y, w, h, 0, 0, out.width, out.height);
+
+  // Compress to max 1000px wide
+  const MAX = 1000;
+  const fin = document.createElement('canvas');
+  let fw = out.width, fh = out.height;
+  if (fw > MAX) { fh = Math.round(fh * MAX / fw); fw = MAX; }
+  fin.width = fw; fin.height = fh;
+  fin.getContext('2d').drawImage(out, 0, 0, fw, fh);
+  const compressed = fin.toDataURL('image/jpeg', 0.82);
+
+  document.getElementById(dataId).value = compressed;
+  document.getElementById(previewId).src = compressed;
+  document.getElementById(wrapId).style.display = 'block';
+  const ph = document.getElementById(placeholderId);
+  if (ph) ph.style.display = 'none';
+  if (extraCb) extraCb();
+
+  document.getElementById('cropModal').style.display = 'none';
+}
+
+function cancelCrop() {
+  // Clear the file input so they can retake
+  if (_crop.inputEl) _crop.inputEl.value = '';
+  document.getElementById('cropModal').style.display = 'none';
 }
 
 function redoPhoto(inputId, previewId, wrapId, placeholderId) {
@@ -1832,7 +2022,18 @@ function generatePDF(data) {
       y += drawH + 24;
     }
 
-    photos.forEach(({ label, src, isDoc }) => addPhotoPreserved(src, label, isDoc));
+    photos.forEach(({ label, src, isDoc }) => {
+      // Check if we need a new page before drawing this photo
+      const estH = isDoc ? 340 : 170;
+      if (y + estH + 60 > H - margin) {
+        newPage();
+        doc.setFont('helvetica','bold'); doc.setFontSize(14); setColor(C.black);
+        doc.text('THE CAULDRON TATTOO COLLECTIVE', W/2, y, {align:'center'}); nl(14);
+        doc.setFontSize(9); setColor(C.muted);
+        doc.text('ID Documents on File (continued)', W/2, y, {align:'center'}); nl(16);
+      }
+      addPhotoPreserved(src, label, isDoc);
+    });
     footer();
   }
 
