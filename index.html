@@ -692,6 +692,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     </div>
     <div style="display:flex;gap:10px;margin-top:14px;">
       <button onclick="cancelCrop()" style="flex:1;padding:14px;background:#333;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;">✕ Retake</button>
+      <button onclick="rotateCrop()" style="flex:1;padding:14px;background:#444;color:#fff;border:none;border-radius:8px;font-size:20px;cursor:pointer;" title="Rotate 90°">↻</button>
       <button onclick="confirmCrop()" style="flex:2;padding:14px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;">✓ Use This Crop</button>
     </div>
   </div>
@@ -755,7 +756,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
       <div class="g4">
         <div class="field">
           <label for="sDate">Date <span class="req" aria-label="required">*</span></label>
-          <input type="date" id="sDate" required>
+          <input type="text" id="sDate" placeholder="MM/DD/YYYY" maxlength="10" required oninput="formatDOB(this)">
         </div>
         <div class="field">
           <label for="sTime">Time</label>
@@ -871,12 +872,23 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 
       <div class="g2">
         <div class="field">
-          <label for="legalName">Patron Legal Name <span class="req">*</span></label>
-          <input type="text" id="legalName" placeholder="First and Last" required autocomplete="name">
+          <label for="firstName">First Name <span class="req">*</span></label>
+          <input type="text" id="firstName" placeholder="Legal first name" required autocomplete="given-name">
         </div>
         <div class="field">
+          <label for="lastName">Last Name <span class="req">*</span></label>
+          <input type="text" id="lastName" placeholder="Legal last name" required autocomplete="family-name">
+        </div>
+      </div>
+
+      <div class="g2 mt">
+        <div class="field">
           <label for="phone">Phone Number <span class="req">*</span></label>
-          <input type="tel" id="phone" placeholder="(000) 000-0000" required autocomplete="tel">
+          <input type="tel" id="phone" placeholder="(000) 000-0000" required autocomplete="tel" oninput="formatPhone(this)">
+        </div>
+        <div class="field">
+          <label for="dlNum">Driver's License # <span class="req">*</span></label>
+          <input type="text" id="dlNum" placeholder="DL or state ID number" required>
         </div>
       </div>
 
@@ -896,22 +908,18 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
         </div>
         <div class="field">
           <label for="zip">Zip <span class="req">*</span></label>
-          <input type="text" id="zip" placeholder="Zip code" required autocomplete="postal-code">
+          <input type="text" id="zip" placeholder="Zip code" maxlength="10" required autocomplete="postal-code" oninput="formatZip(this)">
         </div>
       </div>
 
-      <div class="g4 mt">
-        <div class="field" style="grid-column: span 2;">
-          <label for="dob">Date of Birth (MM-DD-YYYY) <span class="req">*</span></label>
-          <input type="date" id="dob" required autocomplete="bday">
+      <div class="g2 mt">
+        <div class="field">
+          <label for="dob">Date of Birth <span class="req">*</span></label>
+          <input type="text" id="dob" placeholder="MM/DD/YYYY" maxlength="10" required autocomplete="bday" oninput="formatDOB(this)" onblur="calcAge()">
         </div>
         <div class="field">
           <label for="age">Age <span class="req">*</span></label>
-          <input type="number" id="age" placeholder="Age" min="0" max="120" required>
-        </div>
-        <div class="field">
-          <label for="dlNum">Driver's License # <span class="req">*</span></label>
-          <input type="text" id="dlNum" placeholder="DL number" required>
+          <input type="text" id="age" placeholder="Auto-filled from DOB" required readonly style="background:var(--input-bg);color:var(--text-muted);">
         </div>
       </div>
 
@@ -949,12 +957,12 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 
         <div class="g2">
           <div class="field">
-            <label for="parentName">Legal Guardian Printed Name <span class="req">*</span></label>
-            <input type="text" id="parentName" placeholder="Full legal name">
+            <label>Guardian Legal First Name <span class="req">*</span></label>
+            <input type="text" id="parentFirstName" placeholder="Legal first name">
           </div>
           <div class="field">
-            <label for="parentDL">Legal Guardian ID # <span class="req">*</span></label>
-            <input type="text" id="parentDL" placeholder="Driver's license or state ID number">
+            <label>Guardian Legal Last Name <span class="req">*</span></label>
+            <input type="text" id="parentLastName" placeholder="Legal last name">
           </div>
         </div>
         <div class="g2 mt">
@@ -965,6 +973,12 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
           <div class="field">
             <label for="parentPronouns">Guardian Pronouns <span style="color:var(--text-muted); font-weight:400;">(optional)</span></label>
             <input type="text" id="parentPronouns" placeholder="she/her, they/them…">
+          </div>
+        </div>
+        <div class="g2 mt">
+          <div class="field">
+            <label for="parentDL">Guardian ID # <span class="req">*</span></label>
+            <input type="text" id="parentDL" placeholder="Driver's license or state ID number">
           </div>
         </div>
 
@@ -1241,7 +1255,11 @@ window.addEventListener('load', () => {
 
   // Pre-fill date/time
   const now = new Date();
-  document.getElementById('sDate').value = now.toISOString().split('T')[0];
+  // Format session date as MM/DD/YYYY for text input
+  const mm = String(now.getMonth()+1).padStart(2,'0');
+  const dd = String(now.getDate()).padStart(2,'0');
+  const yyyy = now.getFullYear();
+  document.getElementById('sDate').value = mm + '/' + dd + '/' + yyyy;
   document.getElementById('sTime').value =
     String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
 
@@ -1272,6 +1290,85 @@ function openSetup() {
   document.getElementById('scriptUrl').value = existing;
   document.getElementById('setupModal').style.display = 'flex';
 }
+
+// ─── FORMATTING HELPERS ──────────────────────────────────
+
+function formatPhone(el) {
+  let v = el.value.replace(/\D/g, '').slice(0,10);
+  if (v.length >= 7) v = '(' + v.slice(0,3) + ') ' + v.slice(3,6) + '-' + v.slice(6);
+  else if (v.length >= 4) v = '(' + v.slice(0,3) + ') ' + v.slice(3);
+  else if (v.length > 0) v = '(' + v;
+  el.value = v;
+}
+
+function formatZip(el) {
+  let v = el.value.replace(/\D/g,'').slice(0,5);
+  el.value = v;
+}
+
+function formatDOB(el) {
+  // Auto-insert slashes: MM/DD/YYYY
+  let v = el.value.replace(/\D/g,'').slice(0,8);
+  if (v.length >= 5) v = v.slice(0,2) + '/' + v.slice(2,4) + '/' + v.slice(4);
+  else if (v.length >= 3) v = v.slice(0,2) + '/' + v.slice(2);
+  el.value = v;
+}
+
+function calcAge() {
+  const dobEl = document.getElementById('dob');
+  const ageEl = document.getElementById('age');
+  if (!dobEl || !ageEl) return;
+  const val = dobEl.value.trim();
+  // Accept MM/DD/YYYY
+  const parts = val.split('/');
+  if (parts.length !== 3 || parts[2].length < 4) { ageEl.value = ''; return; }
+  const dob = new Date(parts[2], parts[0]-1, parts[1]);
+  if (isNaN(dob)) { ageEl.value = ''; return; }
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+  if (age < 0 || age > 120) { ageEl.value = ''; return; }
+  ageEl.value = age;
+  // Auto-open minor section if under 18
+  const minorCheck = document.getElementById('isMinor');
+  if (minorCheck) {
+    if (age < 18) {
+      if (!minorCheck.checked) {
+        minorCheck.checked = true;
+        document.getElementById('minorSection').style.display = 'block';
+      }
+    } else {
+      if (minorCheck.checked) {
+        minorCheck.checked = false;
+        document.getElementById('minorSection').style.display = 'none';
+      }
+    }
+  }
+  // Visual feedback
+  ageEl.style.color = age < 18 ? '#f59e0b' : '';
+}
+
+// Also validate phone/zip on blur
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('phone')?.addEventListener('blur', function() {
+    const digits = this.value.replace(/\D/g,'');
+    if (digits.length > 0 && digits.length !== 10) {
+      this.setCustomValidity('Please enter a 10-digit phone number');
+      this.reportValidity();
+    } else { this.setCustomValidity(''); }
+  });
+  document.getElementById('zip')?.addEventListener('blur', function() {
+    const v = this.value.replace(/\D/g,'');
+    if (v.length > 0 && v.length !== 5) {
+      this.setCustomValidity('Zip code must be 5 digits');
+      this.reportValidity();
+    } else { this.setCustomValidity(''); }
+  });
+  document.getElementById('dob')?.addEventListener('blur', function() {
+    if (!document.getElementById('age').value) calcAge();
+  });
+});
 
 // ─── INITIALS ─────────────────────────────────────────────
 function checkInit(input, rowId) {
@@ -1573,9 +1670,44 @@ function confirmCrop() {
 }
 
 function cancelCrop() {
-  // Clear the file input so they can retake
   if (_crop.inputEl) _crop.inputEl.value = '';
   document.getElementById('cropModal').style.display = 'none';
+}
+
+function rotateCrop() {
+  // Rotate source image 90deg CW, rebuild canvas and reset crop box
+  const src = _crop.img;
+  const rotCanvas = document.createElement('canvas');
+  rotCanvas.width = src.height;
+  rotCanvas.height = src.width;
+  const ctx = rotCanvas.getContext('2d');
+  ctx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(src, -src.width / 2, -src.height / 2);
+  const rotImg = new Image();
+  rotImg.onload = () => {
+    _crop.img = rotImg;
+    // Recalculate default crop box for new dimensions
+    const iw = rotImg.width, ih = rotImg.height;
+    const cardAspect = 1.586;
+    let bw = iw * 0.85;
+    let bh = bw / cardAspect;
+    if (bh > ih * 0.85) { bh = ih * 0.85; bw = bh * cardAspect; }
+    _crop.x = (iw - bw) / 2;
+    _crop.y = (ih - bh) / 2;
+    _crop.w = bw;
+    _crop.h = bh;
+    // Resize canvas
+    const canvas = document.getElementById('cropCanvas');
+    const displayW = Math.min(528, window.innerWidth - 64);
+    canvas.width = iw;
+    canvas.height = ih;
+    canvas.style.width = displayW + 'px';
+    canvas.style.height = (ih * displayW / iw) + 'px';
+    drawCrop();
+    bindCropEvents(canvas);
+  };
+  rotImg.src = rotCanvas.toDataURL('image/jpeg', 0.95);
 }
 
 function redoPhoto(inputId, previewId, wrapId, placeholderId) {
@@ -1599,7 +1731,7 @@ function validateClient() {
   const errs = [];
   const req = [
     ['sDate','Date'], ['sArtist','Artist'], ['sDesign','Design'], ['sPlacement','Placement'],
-    ['legalName','Legal Name'], ['phone','Phone'], ['dob','Date of Birth'],
+    ['firstName','First Name'], ['lastName','Last Name'], ['phone','Phone'], ['dob','Date of Birth'],
     ['age','Age'], ['address','Address'], ['city','City'], ['state','State'],
     ['zip','Zip'], ['dlNum',"Driver's License #"]
   ];
@@ -1611,7 +1743,7 @@ function validateClient() {
   if (!document.getElementById('csigData').value) errs.push('Patron signature required');
 
   if (document.getElementById('isMinor').checked) {
-    if (!document.getElementById('parentName').value.trim()) errs.push('Guardian name required');
+    if (!document.getElementById('parentFirstName').value.trim() || !document.getElementById('parentLastName').value.trim()) errs.push('Guardian first and last name required');
     if (!document.getElementById('parentDL').value.trim()) errs.push('Guardian ID # required');
     if (!document.getElementById('pidPhotoData').value) errs.push('Guardian photo ID required');
     if (!document.getElementById('pogPhotoData').value) errs.push('Proof of guardianship photo required');
@@ -1913,7 +2045,7 @@ function generatePDF(data) {
   // Client info
   doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
   doc.text('CUSTOMER / CLIENT INFORMATION', margin, y); nl(16);
-  twoFields('Legal Name:', cl.legalName, 'Date:', s.date, 0.68); nl(18);
+  twoFields('Legal Name:', (cl.firstName && cl.lastName) ? cl.firstName + ' ' + cl.lastName : cl.legalName, 'Date:', s.date, 0.68); nl(18);
   twoFields('Preferred Name:', cl.prefName, 'Pronouns:', cl.prefPronouns, 0.55, true, true); nl(18);
   twoFields('Phone:', cl.phone, "Driver's License #:", cl.dlNum, 0.42); nl(18);
   fieldLine('Address:', cl.address, 48); nl(18);
@@ -2116,7 +2248,9 @@ function collectData() {
       finalCost: document.getElementById('aFinalCost').value.trim(),
     },
     client: {
-      legalName: document.getElementById('legalName').value.trim(),
+      legalName: (document.getElementById('firstName').value.trim() + ' ' + document.getElementById('lastName').value.trim()).trim(),
+      firstName: document.getElementById('firstName').value.trim(),
+      lastName: document.getElementById('lastName').value.trim(),
       prefName: document.getElementById('prefName').value.trim(),
       prefPronouns: document.getElementById('prefPronouns').value.trim(),
       phone: document.getElementById('phone').value.trim(),
@@ -2142,7 +2276,9 @@ function collectData() {
     guardianProofPhoto: document.getElementById('pogPhotoData') ? document.getElementById('pogPhotoData').value : '',
     isMinor,
     minor: isMinor ? {
-      parentName: document.getElementById('parentName').value.trim(),
+      parentName: (document.getElementById('parentFirstName').value.trim() + ' ' + document.getElementById('parentLastName').value.trim()).trim(),
+      parentFirstName: document.getElementById('parentFirstName').value.trim(),
+      parentLastName: document.getElementById('parentLastName').value.trim(),
       parentDL: document.getElementById('parentDL').value.trim(),
       parentPrefName: document.getElementById('parentPrefName').value.trim(),
       parentPronouns: document.getElementById('parentPronouns').value.trim(),
@@ -2243,7 +2379,8 @@ function nextClient() {
   // Reset all inputs
   document.getElementById('page1').querySelectorAll('input:not([type=hidden]):not([type=checkbox]), textarea').forEach(el => {
     if (el.type === 'date') {
-      el.value = new Date().toISOString().split('T')[0];
+      const _n = new Date();
+      el.value = String(_n.getMonth()+1).padStart(2,'0') + '/' + String(_n.getDate()).padStart(2,'0') + '/' + _n.getFullYear();
     } else if (el.type === 'time') {
       const n = new Date();
       el.value = String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0');
