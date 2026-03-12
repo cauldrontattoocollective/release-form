@@ -692,7 +692,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     </div>
     <div style="display:flex;gap:10px;margin-top:14px;">
       <button onclick="cancelCrop()" style="flex:1;padding:14px;background:#333;color:#fff;border:none;border-radius:8px;font-size:15px;cursor:pointer;">✕ Retake</button>
-      <button onclick="rotateCrop()" style="flex:1;padding:14px;background:#444;color:#fff;border:none;border-radius:8px;font-size:20px;cursor:pointer;" title="Rotate 90°">↻</button>
+      <button onclick="rotateCrop()" style="flex:1;padding:14px;background:#444;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;" title="Rotate 90°">↻ Rotate</button>
       <button onclick="confirmCrop()" style="flex:2;padding:14px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;">✓ Use This Crop</button>
     </div>
   </div>
@@ -760,7 +760,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
         </div>
         <div class="field">
           <label for="sTime">Time</label>
-          <input type="time" id="sTime">
+          <input type="text" id="sTime" placeholder="12:00 PM" maxlength="8" oninput="formatTime(this)">
         </div>
         <div class="field">
           <label for="sArtist">Artist <span class="req" aria-label="required">*</span></label>
@@ -1260,8 +1260,10 @@ window.addEventListener('load', () => {
   const dd = String(now.getDate()).padStart(2,'0');
   const yyyy = now.getFullYear();
   document.getElementById('sDate').value = mm + '/' + dd + '/' + yyyy;
-  document.getElementById('sTime').value =
-    String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  const _h = now.getHours(), _m = now.getMinutes();
+  const _h12 = _h % 12 || 12;
+  const _ampm = _h >= 12 ? 'PM' : 'AM';
+  document.getElementById('sTime').value = _h12 + ':' + String(_m).padStart(2,'0') + ' ' + _ampm;
 
   // Init sig pads
   ['csigCanvas','psigCanvas','asigCanvas'].forEach(id => {
@@ -1299,6 +1301,23 @@ function formatPhone(el) {
   else if (v.length >= 4) v = '(' + v.slice(0,3) + ') ' + v.slice(3);
   else if (v.length > 0) v = '(' + v;
   el.value = v;
+}
+
+function formatTime(el) {
+  // Auto-format as user types: digits only → insert colon → append AM/PM
+  let raw = el.value.replace(/[^0-9apmAPM]/g, '');
+  let digits = raw.replace(/[^0-9]/g, '').slice(0, 4);
+  let suffix = raw.replace(/[^apmAPM]/gi, '').toUpperCase();
+
+  let out = digits;
+  if (digits.length >= 3) out = digits.slice(0, 2) + ':' + digits.slice(2);
+  else if (digits.length === 2 && el._lastLen < 2) out = digits + ':';
+
+  if (suffix.includes('A')) out = out.replace(/ ?(AM|PM)?$/, '') + ' AM';
+  else if (suffix.includes('P')) out = out.replace(/ ?(AM|PM)?$/, '') + ' PM';
+
+  el._lastLen = digits.length;
+  el.value = out;
 }
 
 function formatZip(el) {
@@ -1540,10 +1559,19 @@ function drawCrop() {
   }
 
   // Corner handles
-  const hs = 22;
-  ctx.fillStyle = '#fff';
+  // Corner handles — larger drawn size for easy touch
+  const hs = 36;
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
   [[x,y],[x+w-hs,y],[x,y+h-hs],[x+w-hs,y+h-hs]].forEach(([hx,hy]) => {
     ctx.fillRect(hx, hy, hs, hs);
+  });
+  // Corner accent lines so they look like handles
+  ctx.strokeStyle = '#7c3aed';
+  ctx.lineWidth = 3;
+  const cl = 14; // corner line length
+  [[x,y,1,1],[x+w,y,-1,1],[x,y+h,1,-1],[x+w,y+h,-1,-1]].forEach(([cx,cy,dx,dy]) => {
+    ctx.beginPath(); ctx.moveTo(cx+dx*4, cy); ctx.lineTo(cx+dx*(4+cl), cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy+dy*4); ctx.lineTo(cx, cy+dy*(4+cl)); ctx.stroke();
   });
 }
 
@@ -1558,7 +1586,7 @@ function getCanvasPoint(canvas, e) {
 
 function getHandle(px, py) {
   const { x, y, w, h } = _crop;
-  const hs = 30; // hit area
+  const hs = 52; // hit area — large for easy touch
   if (px < x+hs && py < y+hs) return 'tl';
   if (px > x+w-hs && py < y+hs) return 'tr';
   if (px < x+hs && py > y+h-hs) return 'bl';
@@ -2111,8 +2139,17 @@ function generatePDF(data) {
     doc.text('Date: ' + s.date + '  \u00b7  Artist: ' + s.artist, W - margin, y, {align:'right'});
     nl(20);
 
-    // Helper: draw image preserving aspect ratio, centered, max width = col
-    function addPhotoPreserved(src, label, isDoc) {
+    // Split IDs from docs — IDs fill page 3, docs spill to page 4+
+    const idPhotos  = photos.filter(p => !p.isDoc);
+    const docPhotos = photos.filter(p => p.isDoc);
+
+    // Available height on page 3 after header + client line
+    const availH = H - margin - y - 30; // 30pt footer buffer
+    // Divide evenly among IDs with 20pt gap between them
+    const idCount = idPhotos.length;
+    const idSlotH = idCount > 0 ? Math.floor((availH - (idCount - 1) * 20) / idCount) : availH;
+
+    function drawPhoto(src, label, slotH) {
       doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
       doc.text(label, margin, y); nl(6);
 
@@ -2122,22 +2159,14 @@ function generatePDF(data) {
       const ih = img.naturalHeight || 900;
       const aspect = iw / ih;
 
-      let drawW, drawH;
-      if (isDoc) {
-        // Documents (birth cert etc) — fit to page width, natural height
-        drawW = col;
-        drawH = col / aspect;
-        if (drawH > 320) { drawH = 320; drawW = drawH * aspect; }
-      } else {
-        // IDs — landscape card: max width col, max height ~140pt
-        const maxH = 140;
-        drawW = Math.min(col, maxH * aspect);
-        drawH = drawW / aspect;
-      }
+      // Fit within slot: full width, capped at slotH
+      let drawW = col;
+      let drawH = drawW / aspect;
+      if (drawH > slotH - 16) { drawH = slotH - 16; drawW = drawH * aspect; }
+      // Never wider than col
+      if (drawW > col) { drawW = col; drawH = drawW / aspect; }
 
-      // Center horizontally
       const xOff = margin + (col - drawW) / 2;
-
       try { doc.addImage(src, 'JPEG', xOff, y, drawW, drawH); }
       catch(e) { try { doc.addImage(src, 'PNG', xOff, y, drawW, drawH); } catch(e2) {
         setDraw(C.rule); doc.setLineWidth(0.5);
@@ -2145,22 +2174,29 @@ function generatePDF(data) {
         doc.setFont('helvetica','italic'); doc.setFontSize(9); setColor(C.muted);
         doc.text('Photo not available', W/2, y + drawH/2, {align:'center'});
       }}
-      y += drawH + 24;
+      y += drawH + 20;
     }
 
-    photos.forEach(({ label, src, isDoc }) => {
-      // Check if we need a new page before drawing this photo
-      const estH = isDoc ? 340 : 170;
-      if (y + estH + 60 > H - margin) {
+    // Draw IDs on page 3 — sized to fill the page
+    idPhotos.forEach(p => drawPhoto(p.src, p.label, idSlotH));
+    footer();
+
+    // Docs go on their own page(s)
+    docPhotos.forEach((p, i) => {
+      if (i === 0) {
         newPage();
         doc.setFont('helvetica','bold'); doc.setFontSize(14); setColor(C.black);
         doc.text('THE CAULDRON TATTOO COLLECTIVE', W/2, y, {align:'center'}); nl(14);
-        doc.setFontSize(9); setColor(C.muted);
-        doc.text('ID Documents on File (continued)', W/2, y, {align:'center'}); nl(16);
+        doc.setFontSize(10); setColor(C.muted);
+        doc.text('Proof of Guardianship', W/2, y, {align:'center'}); nl(8);
+        hline(1.2, C.black); nl(16);
+        doc.setFont('helvetica','normal'); doc.setFontSize(8); setColor(C.muted);
+        doc.text('Client: ' + cl.legalName + '  ·  Date: ' + s.date, margin, y); nl(20);
       }
-      addPhotoPreserved(src, label, isDoc);
+      const docSlotH = H - margin - y - 30;
+      drawPhoto(p.src, p.label, docSlotH);
+      footer();
     });
-    footer();
   }
 
   // ════════════════════════════════════════
@@ -2168,7 +2204,12 @@ function generatePDF(data) {
   // ════════════════════════════════════════
   // Output PDF — download + Drive upload
   // ════════════════════════════════════════
-  const fname = s.date + '_' + (cl.legalName||'Client').replace(/\s+/g,'_') + '_Consent.pdf';
+  // Filename: YYYY_MM_DD_FirstName_LastName_Consent.pdf
+  const _dateParts = (s.date || '').split('/'); // MM/DD/YYYY
+  const _dateStr = _dateParts.length === 3 ? _dateParts[2] + '_' + _dateParts[0] + '_' + _dateParts[1] : s.date;
+  const _first = (cl.firstName || (cl.legalName||'').split(' ')[0] || 'Client').replace(/\s+/g,'_');
+  const _last = (cl.lastName || (cl.legalName||'').split(' ').slice(1).join('_') || '').replace(/\s+/g,'_');
+  const fname = _dateStr + '_' + _first + (_last ? '_' + _last : '') + '.pdf';
 
   // Get base64 first (most compatible)
   const b64 = doc.output('datauristring').split(',')[1];
@@ -2198,7 +2239,7 @@ function generatePDF(data) {
     // Apps Script requires no-cors for cross-origin POST, but then we can't read the response.
     // Workaround: send as query param via GET-style POST so Apps Script can log it,
     // OR use a form-encoded POST which Apps Script handles via e.postData
-    const payload = JSON.stringify({ pdf: b64, clientName: cl.legalName || 'Client', date: s.date });
+    const payload = JSON.stringify({ pdf: b64, clientName: (cl.firstName||'Client') + (cl.lastName ? '_'+cl.lastName : ''), date: s.date });
     fetch(scriptUrl, {
       method: 'POST',
       mode: 'no-cors',
@@ -2208,7 +2249,6 @@ function generatePDF(data) {
       if (driveStatus) driveStatus.textContent = '✓ Saved to Google Drive';
       if (driveLink) {
         // Can't get file ID with no-cors — link to folder search instead
-        const fname = s.date + '_' + (cl.legalName||'Client').replace(/\s+/g,'_') + '_Consent.pdf';
         driveLink.href = 'https://drive.google.com/drive/folders/' + DRIVE_FOLDER_ID;
         driveLink.style.display = 'block';
       }
@@ -2372,7 +2412,8 @@ function nextClient() {
       el.value = String(_n.getMonth()+1).padStart(2,'0') + '/' + String(_n.getDate()).padStart(2,'0') + '/' + _n.getFullYear();
     } else if (el.type === 'time') {
       const n = new Date();
-      el.value = String(n.getHours()).padStart(2,'0') + ':' + String(n.getMinutes()).padStart(2,'0');
+      const _nh = n.getHours(), _nm = n.getMinutes();
+      el.value = (_nh%12||12) + ':' + String(_nm).padStart(2,'0') + ' ' + (_nh>=12?'PM':'AM');
     } else {
       el.value = '';
     }
