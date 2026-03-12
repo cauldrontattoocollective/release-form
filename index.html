@@ -1350,25 +1350,7 @@ function calcAge() {
 }
 
 // Also validate phone/zip on blur
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('phone')?.addEventListener('blur', function() {
-    const digits = this.value.replace(/\D/g,'');
-    if (digits.length > 0 && digits.length !== 10) {
-      this.setCustomValidity('Please enter a 10-digit phone number');
-      this.reportValidity();
-    } else { this.setCustomValidity(''); }
-  });
-  document.getElementById('zip')?.addEventListener('blur', function() {
-    const v = this.value.replace(/\D/g,'');
-    if (v.length > 0 && v.length !== 5) {
-      this.setCustomValidity('Zip code must be 5 digits');
-      this.reportValidity();
-    } else { this.setCustomValidity(''); }
-  });
-  document.getElementById('dob')?.addEventListener('blur', function() {
-    if (!document.getElementById('age').value) calcAge();
-  });
-});
+// Phone/zip/dob validation is handled inline by validateClient()
 
 // ─── INITIALS ─────────────────────────────────────────────
 function checkInit(input, rowId) {
@@ -1735,6 +1717,18 @@ function validateClient() {
     ['zip','Zip'], ['dlNum',"Driver's License #"]
   ];
   req.forEach(([id, lbl]) => { if (!document.getElementById(id).value.trim()) errs.push(lbl + ' is required'); });
+
+  // Phone — must be 10 digits
+  const phoneDigits = document.getElementById('phone').value.replace(/\D/g,'');
+  if (phoneDigits.length > 0 && phoneDigits.length !== 10) errs.push('Phone must be a 10-digit number');
+
+  // Zip — must be 5 digits
+  const zipVal = document.getElementById('zip').value.replace(/\D/g,'');
+  if (zipVal.length > 0 && zipVal.length !== 5) errs.push('Zip code must be 5 digits');
+
+  // DOB — must produce a valid age
+  if (!document.getElementById('age').value) calcAge();
+  if (!document.getElementById('age').value) errs.push('Date of Birth must be a valid date (MM/DD/YYYY)');
 
   for (let i = 1; i <= 9; i++) {
     if (!document.getElementById('ii' + i).value.trim()) errs.push('Initial #' + i + ' missing');
@@ -2419,4 +2413,13 @@ function nextClient() {
   // Clear status bars
   ['clientStatus','artistStatus'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.className = 'status-
+    if (el) el.className = 'status-bar';
+  });
+
+  showPage('page1');
+  window.scrollTo(0, 0);
+}
+</script>
+
+</body>
+</html>
