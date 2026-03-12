@@ -766,10 +766,6 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
           <label for="sArtist">Artist <span class="req" aria-label="required">*</span></label>
           <input type="text" id="sArtist" placeholder="Artist name" required>
         </div>
-        <div class="field">
-          <label for="sPrice">Price</label>
-          <input type="text" id="sPrice" placeholder="$">
-        </div>
       </div>
       <div class="g2 mt">
         <div class="field">
@@ -1105,15 +1101,9 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
       Client consent is complete. Confirm the session details, review the ID photo, and sign below.
     </p>
 
-    <div class="g2">
-      <div class="field">
-        <label for="aDeposit">Deposit Received</label>
-        <input type="text" id="aDeposit" placeholder="$ (optional)">
-      </div>
-      <div class="field">
-        <label for="aFinalCost">Final Tattoo Cost</label>
-        <input type="text" id="aFinalCost" placeholder="$ (optional)">
-      </div>
+    <div class="field" style="max-width:240px;">
+      <label for="aFinalCost">Total Cost</label>
+      <input type="text" id="aFinalCost" placeholder="$">
     </div>
 
     <div class="field mt">
@@ -1559,20 +1549,27 @@ function drawCrop() {
   }
 
   // Corner handles
-  // Corner handles — larger drawn size for easy touch
-  const hs = 36;
-  ctx.fillStyle = 'rgba(255,255,255,0.95)';
-  [[x,y],[x+w-hs,y],[x,y+h-hs],[x+w-hs,y+h-hs]].forEach(([hx,hy]) => {
-    ctx.fillRect(hx, hy, hs, hs);
+  // Corner handles — large L-shaped brackets, easy to grab
+  const armLen = 40; // length of each L arm in canvas pixels
+  const armW = 10;   // thickness
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.shadowBlur = 6;
+
+  // Draw L-shape at each corner: [cornerX, cornerY, xDir, yDir]
+  [
+    [x,     y,      1,  1],
+    [x+w,   y,     -1,  1],
+    [x,     y+h,    1, -1],
+    [x+w,   y+h,   -1, -1],
+  ].forEach(([cx, cy, dx, dy]) => {
+    // Horizontal arm
+    ctx.fillRect(cx, cy, dx * armLen, dy * armW);
+    // Vertical arm (share corner square)
+    ctx.fillRect(cx, cy, dx * armW, dy * armLen);
   });
-  // Corner accent lines so they look like handles
-  ctx.strokeStyle = '#7c3aed';
-  ctx.lineWidth = 3;
-  const cl = 14; // corner line length
-  [[x,y,1,1],[x+w,y,-1,1],[x,y+h,1,-1],[x+w,y+h,-1,-1]].forEach(([cx,cy,dx,dy]) => {
-    ctx.beginPath(); ctx.moveTo(cx+dx*4, cy); ctx.lineTo(cx+dx*(4+cl), cy); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx, cy+dy*4); ctx.lineTo(cx, cy+dy*(4+cl)); ctx.stroke();
-  });
+
+  ctx.shadowBlur = 0;
 }
 
 function getCanvasPoint(canvas, e) {
@@ -1586,7 +1583,7 @@ function getCanvasPoint(canvas, e) {
 
 function getHandle(px, py) {
   const { x, y, w, h } = _crop;
-  const hs = 52; // hit area — large for easy touch
+  const hs = 72; // hit area — very large for easy touch
   if (px < x+hs && py < y+hs) return 'tl';
   if (px > x+w-hs && py < y+hs) return 'tr';
   if (px < x+hs && py > y+h-hs) return 'bl';
@@ -2017,7 +2014,7 @@ function generatePDF(data) {
   // Session bar
   fourFields([
     ['DATE:', s.date, 0.22], ['TIME:', s.time, 0.18],
-    ['ARTIST:', s.artist, 0.32], ['DEPOSIT:', s.deposit||s.price, 0.28]
+    ['ARTIST:', s.artist, 0.32], ['DEPOSIT:', s.deposit, 0.28]
   ]); nl(22);
 
   // Title
@@ -2074,10 +2071,11 @@ function generatePDF(data) {
   hline(0.8, C.black); nl(12);
 
   // Client signature
+  hline(0.4, C.rule); nl(12);
   doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
-  doc.text('\u26a0  Customer/Client Signature:', margin, y); nl(8);
+  doc.text('Customer / Client Signature', margin, y); nl(11);
   doc.setFont('helvetica','italic'); doc.setFontSize(8); setColor(C.muted);
-  doc.text('I hereby CERTIFY that, to the best of my knowledge, the information above is CORRECT.', margin, y); nl(10);
+  doc.text('I hereby certify that, to the best of my knowledge, the information above is correct.', margin, y); nl(10);
   sigLine('', data.signatures && data.signatures.client, 72);
 
   footer();
@@ -2100,7 +2098,10 @@ function generatePDF(data) {
   twoFields('Guardian Legal Name:', m.parentName, 'Preferred Name:', m.parentPrefName, 0.52, false, true); nl(18);
   twoFields('Pronouns:', m.parentPronouns, "Guardian Driver's License #:", m.parentDL, 0.30, true); nl(18);
   nl(6);
-  sigLine('Guardian Signature:', data.signatures && data.signatures.parent, 72);
+  hline(0.4, C.rule); nl(12);
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
+  doc.text('Legal Guardian Signature', margin, y); nl(10);
+  sigLine('', data.signatures && data.signatures.parent, 72);
   nl(14);
 
   hline(0.8, C.black); nl(16);
@@ -2112,7 +2113,10 @@ function generatePDF(data) {
 
   twoFields('TATTOO DESIGN:', s.design, 'PLACEMENT:', s.placement, 0.5); nl(20);
   twoFields('FINAL COST:', s.finalCost, 'DATE:', s.date, 0.5); nl(20);
-  sigLine('Artist Signature:', data.signatures && data.signatures.artist, 72);
+  hline(0.4, C.rule); nl(12);
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); setColor(C.black);
+  doc.text('Artist Signature', margin, y); nl(10);
+  sigLine('', data.signatures && data.signatures.artist, 72);
 
   footer();
 
@@ -2270,7 +2274,7 @@ function collectData() {
       date: document.getElementById('sDate').value,
       time: document.getElementById('sTime').value,
       artist: document.getElementById('sArtist').value.trim(),
-      price: document.getElementById('sPrice').value.trim(),
+      price: '',
       deposit: document.getElementById('sDeposit').value.trim(),
       design: document.getElementById('sDesign').value.trim(),
       placement: document.getElementById('sPlacement').value.trim(),
