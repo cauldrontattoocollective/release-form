@@ -1247,9 +1247,10 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 
     <!-- Drive link -->
     <div class="confirm-card" id="driveCard" style="display:none;" role="region" aria-label="Google Drive link">
-      <div class="confirm-card-title">Saved to Google Drive</div>
+      <div class="confirm-card-title">Google Drive</div>
+      <div id="driveStatus" style="font-size:14px;margin-bottom:8px;color:#555;">⏳ Uploading to Drive...</div>
       <a class="drive-link" id="driveLink" href="#" target="_blank" rel="noopener">
-        📄 Open this consent form in Drive
+        📄 Search for this form in Drive
       </a>
     </div>
 
@@ -1865,11 +1866,18 @@ function generatePDF(data) {
   }
 
   // ════════════════════════════════════════
-  // Download + Drive upload
+  // ════════════════════════════════════════
+  // ════════════════════════════════════════
+  // Output PDF — download + Drive upload
   // ════════════════════════════════════════
   const fname = s.date + '_' + (cl.legalName||'Client').replace(/\s+/g,'_') + '_Consent.pdf';
+
+  // Get base64 first (most compatible)
+  const b64 = doc.output('datauristring').split(',')[1];
+  const pdfBlob = doc.output('blob');
+
+  // 1. Download to device
   try {
-    const pdfBlob = doc.output('blob');
     const blobUrl = URL.createObjectURL(pdfBlob);
     const a = document.createElement('a');
     a.href = blobUrl;
@@ -1878,22 +1886,27 @@ function generatePDF(data) {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
   } catch(e) {
-    const dataUri = doc.output('datauristring');
-    window.open(dataUri, '_blank');
+    try { window.open('data:application/pdf;base64,' + b64, '_blank'); } catch(e2) {}
   }
 
-  if (scriptUrl) {
-    try {
-      const b64 = doc.output('datauristring').split(',')[1];
-      fetch(scriptUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pdf: b64, clientName: cl.legalName || 'Client', date: s.date })
-      }).catch(() => {});
-    } catch(e) {}
+  // 2. Upload PDF to Google Drive
+  if (scriptUrl && b64) {
+    const driveStatus = document.getElementById('driveStatus');
+    if (driveStatus) driveStatus.textContent = '⏳ Uploading to Drive...';
+    // Apps Script with no-cors requires sending as plain text, not JSON content-type
+    // We encode our JSON payload as a URL param so Apps Script can read e.parameter.data
+    const payload = JSON.stringify({ pdf: b64, clientName: cl.legalName || 'Client', date: s.date });
+    fetch(scriptUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: new URLSearchParams({ data: payload })
+    }).then(() => {
+      if (driveStatus) driveStatus.textContent = '✓ Saved to Google Drive';
+    }).catch((err) => {
+      if (driveStatus) driveStatus.textContent = '⚠ Drive upload failed — PDF saved locally';
+    });
   }
 }
 
@@ -2048,10 +2061,10 @@ function buildConfirmScreen(data) {
     }
   }
 
-  // Drive link
+  // Drive card — always show if scriptUrl configured
   if (scriptUrl) {
     document.getElementById('driveCard').style.display = 'block';
-    // Build a search link for this specific file by name
+    document.getElementById('driveStatus').textContent = '⏳ Uploading to Drive...';
     const fname = data.session.date + '_' + (data.client.legalName||'Client').replace(/\s+/g,'_') + '_Consent.pdf';
     document.getElementById('driveLink').href = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(fname);
   }
